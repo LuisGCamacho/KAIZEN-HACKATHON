@@ -6,7 +6,7 @@ import openai
 import pytest
 
 from agents.agent import ResultadoAgente
-from core import almacen, archivos, llm
+from core import almacen, archivos, llm, proveedor_codex
 from core.contracts import REASON_ERROR_API, AgentSpec, GenerationReport, Step
 from env.tareas import POR_ID_TAREA
 from evaluation import evals, history, judge, rescore
@@ -130,3 +130,19 @@ def test_sin_presupuesto_si_se_corta_la_corrida(harness, monkeypatch):
     monkeypatch.setattr(evals.builder, "build", lambda spec, seed=None: sin_presupuesto)
     with pytest.raises(llm.BudgetExceeded):
         evals.run_generation(_spec(), 1, TAREAS_PRUEBA)
+
+
+def test_un_fallo_de_codex_tampoco_tumba_la_generacion(harness, monkeypatch):
+    def codex_falla(conversacion, notificar=None):
+        raise proveedor_codex.FalloTransitorio("codex exec terminó con código 1")
+    monkeypatch.setattr(evals.builder, "build", lambda spec, seed=None: codex_falla)
+    trazas = evals.run_generation(_spec(), 1, TAREAS_PRUEBA)
+    assert {t.verdict.reason for t in trazas} == {REASON_ERROR_API}
+
+
+def test_si_el_juez_falla_el_episodio_se_conserva_sin_nota(harness, monkeypatch):
+    def juez_falla(*args):
+        raise proveedor_codex.FalloTransitorio("Codex no devolvió el JSON del esquema")
+    monkeypatch.setattr(judge, "juzgar", juez_falla)
+    trazas = evals.run_generation(_spec(), 1, TAREAS_PRUEBA)
+    assert trazas[0].verdict.passed and trazas[0].verdict.judge_p_pass is None
