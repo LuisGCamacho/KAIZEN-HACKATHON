@@ -94,7 +94,7 @@ export function FitnessChart({ rows, control = [], label = "Tasa de éxito por g
         <circle className="chart-point" cx={xAt(row.generation)} cy={yAt(row.heldout_mean)} r="4" />
         <text className="chart-value" x={xAt(row.generation)} y={yAt(row.heldout_mean) - SEPARACION_ETIQUETA} textAnchor={ancla(xAt(row.generation))}>{pct(row.heldout_mean)}</text>
         {Math.abs(row.train_mean - row.heldout_mean) >= DIFERENCIA_VISIBLE && controlPropio.length === 0 &&
-          <text className="chart-value chart-value-train" x={xAt(row.generation)} y={yAt(row.train_mean) + SEPARACION_ETIQUETA + 8} textAnchor="middle">{`train ${pct(row.train_mean)}`}</text>}
+          <text className="chart-value chart-value-train" x={xAt(row.generation)} y={yAt(row.train_mean) + SEPARACION_ETIQUETA + 8} textAnchor={ancla(xAt(row.generation))}>{`train ${pct(row.train_mean)}`}</text>}
       </g>)}
       {generaciones.map(generacion => <text key={`x-${generacion}`} className="chart-x-label" x={xAt(generacion)} y={HEIGHT - 12} textAnchor="middle">Gen {generacion}</text>)}
     </svg>
