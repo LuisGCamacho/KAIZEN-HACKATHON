@@ -12,9 +12,8 @@ import json
 
 import openai
 
-from core import llm
+from core import llm, versions
 from core.contracts import Step
-from core.paths import META
 
 TEMPERATURA_JUEZ = 0.0  # la misma respuesta debe recibir la misma nota en cada corrida
 MAX_TOKENS_JUEZ = 200  # la salida es un JSON de dos números: acota el costo si el modelo divaga
@@ -24,8 +23,13 @@ SIN_HERRAMIENTAS = "(ninguna)"  # lo que ve el juez cuando el agente respondió 
 
 
 def leer_rubrica(version: int) -> str:
-    """Texto de la rúbrica vigente. El meta-juez escribe versiones nuevas (v1, v2...) a partir de la v0."""
-    return (META / f"rubrica_v{version}.md").read_text(encoding="utf-8")
+    """Texto de la rúbrica vigente. El meta-juez escribe versiones nuevas (v1, v2...) a partir de la v0.
+
+    Una rúbrica que no existe es un error: juzgar con instrucciones vacías daría notas sin sentido."""
+    texto = versions.texto("rubrica", version)
+    if not texto:
+        raise FileNotFoundError(f"No existe la rúbrica v{version}: {versions.ruta('rubrica', version)}")
+    return texto
 
 
 def describir_paso(paso: Step) -> str:

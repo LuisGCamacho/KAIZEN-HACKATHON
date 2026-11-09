@@ -13,9 +13,9 @@ import re
 from collections import Counter
 from typing import Callable
 
-from core import artifacts, llm
+from core import artifacts, llm, versions
 from core.contracts import AgentSpec, Artifact, Trace
-from core.paths import DATA, META, PLAYBOOKS, PROMPTS, rel
+from core.paths import DATA, PLAYBOOKS, PROMPTS, rel
 from improve import tool_synth
 
 MAX_CAUSAS = 3  # solo las causas más frecuentes: concentra el aprendizaje donde más se falla
@@ -63,7 +63,11 @@ def formatear_ejemplos(trazas: list[Trace]) -> str:
 
 def leer_prompt_destilador(version: int) -> str:
     """Prompt con el que el destilador escribe playbooks. El meta-destilador crea versiones nuevas (v1, v2...)."""
-    return (META / f"distiller_prompt_v{version}.md").read_text(encoding="utf-8")
+    texto = versions.texto("distiller_prompt", version)
+    if not texto:
+        raise FileNotFoundError(f"No existe el prompt del destilador v{version}: "
+                                f"{versions.ruta('distiller_prompt', version)}")
+    return texto
 
 
 def causa_de_playbook(ruta: str) -> str | None:
