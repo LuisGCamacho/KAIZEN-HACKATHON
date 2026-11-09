@@ -182,3 +182,20 @@ def test_cache_de_modelo_desconocido_se_cobra_como_entrada(monkeypatch):
     monkeypatch.setenv("PRICE_MI_MODELO", "1,2,0.25")
     assert llm.precio_por_millon("mi-modelo") == (1.0, 2.0)
     assert llm.precio_cache_por_millon("mi-modelo") == 0.25
+
+
+def test_parametros_para_modelos_de_razonamiento(monkeypatch):
+    """GPT-6 en chat/completions: reasoning_effort configurable y max_completion_tokens en vez de max_tokens."""
+    llamadas = cliente_falso(monkeypatch, [respuesta_falsa(), respuesta_falsa()])
+    monkeypatch.setattr(llm, "ESFUERZO_RAZONAMIENTO", "none")
+    llm.chat([{"role": "user", "content": "hola"}], "gpt-6-luna", max_tokens=200)
+    assert llamadas[0]["reasoning_effort"] == "none" and llamadas[0]["max_completion_tokens"] == 200
+    assert "max_tokens" not in llamadas[0]
+    monkeypatch.setattr(llm, "ESFUERZO_RAZONAMIENTO", "")
+    llm.chat([{"role": "user", "content": "hola"}], "gpt-4.1-mini")
+    assert "reasoning_effort" not in llamadas[1]
+
+
+def test_precio_de_gpt6():
+    assert llm.precio_por_millon("gpt-6-luna") == (0.10, 0.50)
+    assert llm.precio_cache_por_millon("gpt-6.1-terra") == 0.05

@@ -188,6 +188,7 @@ Si cambias la forma de alguno, actualiza `web/lib/types.ts` y avisa.
 | `KAIZEN_SEEDS` | `1,2,3` | Semillas por generación |
 | `KAIZEN_WORKERS` | `8` | Episodios en paralelo (1 con un modelo local) |
 | `KAIZEN_PROVIDER` | `openai` | `codex` usa la CLI de Codex con una cuenta de ChatGPT (`core/proveedor_codex.py`): sin temperatura ni semilla, costo 0 USD y tope por tokens. Codex es un agente con terminal: cualquier intento de usar una herramienta propia mata el proceso y descarta la respuesta |
+| `OPENAI_REASONING_EFFORT` | — (no se envía) | Para modelos de razonamiento (p. ej. `gpt-6-luna`, `gpt-6.1-terra`): `none`, porque en `/v1/chat/completions` solo aceptan tools sin razonamiento. `max_tokens` se envía como `max_completion_tokens` |
 | `CODEX_MAX_TOKENS` | `0` (sin tope) | Corte de tokens de Codex acumulados en `spend.json` (`codex_tokens`) |
 | `CODEX_EFFORT` / `CODEX_EFFORT_SMART` | `low` / `medium` | Esfuerzo de razonamiento del agente y juez / del destilador y meta-loop |
 | `KAIZEN_TASKS` | `todas` | `reducido`: gen0/next/loop evalúan 50 tareas fijas (5 held-out + 5 train por familia). La curva sigue siendo comparable entre generaciones |

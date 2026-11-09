@@ -26,6 +26,9 @@ MODELO_INTELIGENTE = os.getenv("MODEL_SMART", "gpt-4.1")  # destilador, síntesi
 PRESUPUESTO_USD = float(os.getenv("BUDGET_USD", "20"))
 # "openai" (API de pago, por defecto) o "codex" (CLI oficial con una cuenta de ChatGPT: core/proveedor_codex.py)
 PROVEEDOR = os.getenv("KAIZEN_PROVIDER", "openai").strip().lower()
+# Modelos de razonamiento (familia GPT-6): en /v1/chat/completions solo aceptan tools con reasoning_effort="none".
+# Vacío = no se envía (modelos sin razonamiento, como gpt-4.1)
+ESFUERZO_RAZONAMIENTO = os.getenv("OPENAI_REASONING_EFFORT", "").strip()
 # Con Codex no hay USD: el tope es de tokens. 0 = sin tope (no recomendado: los créditos de la cuenta se agotan)
 PRESUPUESTO_TOKENS_CODEX = int(os.getenv("CODEX_MAX_TOKENS", "0"))
 ARCHIVO_GASTO = SPEND  # contrato: {"usd": float}
@@ -37,6 +40,10 @@ PRECIOS_POR_MILLON = {
     "gpt-4.1-nano": (0.10, 0.40),
     "gpt-4o-mini": (0.15, 0.60),
     "gpt-4o": (2.50, 10.00),
+    # Familia GPT-6 (lista de precios citada por agregadores, nov 2026): con razonamiento apagado sirven de agente
+    "gpt-6-luna": (0.10, 0.50),
+    "gpt-6.1-terra": (1.00, 5.00),
+    "gpt-6.1-sol": (2.00, 10.00),
 }
 PRECIO_MODELO_DESCONOCIDO = (2.00, 8.00)  # se asume caro: subestimar el gasto es peor que sobreestimarlo
 # Entrada en caché (USD por millón): OpenAI cobra menos el prefijo repetido del prompt (sistema + tools),
@@ -47,6 +54,9 @@ PRECIOS_CACHE_POR_MILLON = {
     "gpt-4.1-nano": 0.025,
     "gpt-4o-mini": 0.075,
     "gpt-4o": 1.25,
+    "gpt-6-luna": 0.01,
+    "gpt-6.1-terra": 0.05,
+    "gpt-6.1-sol": 0.10,
 }
 TOKENS_POR_MILLON = 1_000_000
 
@@ -190,8 +200,12 @@ def chat(mensajes: list[dict], modelo: str = MODELO_AGENTE, herramientas: list[d
         parametros["response_format"] = {"type": "json_object"}
     if timeout_s:
         parametros["timeout"] = timeout_s
+    if ESFUERZO_RAZONAMIENTO:
+        parametros["reasoning_effort"] = ESFUERZO_RAZONAMIENTO
     if max_tokens:
-        parametros["max_tokens"] = max_tokens
+        # La API marca max_tokens como obsoleto y los modelos de razonamiento lo rechazan; un servidor local
+        # compatible con OpenAI (Ollama) puede no conocer el nombre nuevo
+        parametros["max_tokens" if es_modelo_local() else "max_completion_tokens"] = max_tokens
 
     for intento in range(1, reintentos + 1):
         try:
