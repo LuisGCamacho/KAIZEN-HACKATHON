@@ -1,3 +1,5 @@
+import { LineageView } from "../../components/views/lineage-view";
+
 export default function LinajePage() {
-  return <h1>Linaje</h1>;
+  return <LineageView state={{ status: "empty" }} />;
 }

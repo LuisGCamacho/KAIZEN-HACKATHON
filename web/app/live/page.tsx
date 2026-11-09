@@ -1,3 +1,5 @@
-export default function LivePage() {
-  return <h1>En vivo</h1>;
+import { LiveView } from "../../components/views/live-view";
+
+export default function EnVivoPage() {
+  return <LiveView state={{ status: "empty" }} />;
 }

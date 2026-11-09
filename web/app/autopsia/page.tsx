@@ -1,3 +1,5 @@
+import { AutopsyView } from "../../components/views/autopsy-view";
+
 export default function AutopsiaPage() {
-  return <h1>Autopsia de fallos</h1>;
+  return <AutopsyView state={{ status: "empty" }} />;
 }

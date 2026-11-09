@@ -1,3 +1,5 @@
+import { TracesView } from "../../components/views/traces-view";
+
 export default function TrazasPage() {
-  return <h1>Trazas</h1>;
+  return <TracesView state={{ status: "empty" }} />;
 }

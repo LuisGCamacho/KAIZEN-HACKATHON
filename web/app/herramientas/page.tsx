@@ -1,3 +1,5 @@
+import { ToolsView } from "../../components/views/tools-view";
+
 export default function HerramientasPage() {
-  return <h1>Herramientas</h1>;
+  return <ToolsView state={{ status: "empty" }} />;
 }

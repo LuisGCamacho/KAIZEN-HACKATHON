@@ -1,0 +1,88 @@
+import { AppShell } from "../app-shell";
+import { DeltaBars } from "../charts/delta-bars";
+import { FitnessChart } from "../charts/fitness-chart";
+import { DataGate, MetricCard, PanelEmpty, SectionHeading } from "../ui/data-display";
+import { num, pct, signedPct } from "../../lib/format";
+import type { Artifact, Generation, Progress, ReportsFile } from "../../lib/types";
+import type { ViewState } from "../../lib/view-state";
+
+function branchToShow(report: ReportsFile): string | null {
+  if (report.generations.some(row => row.branch === "main")) return "main";
+  if (report.generations.some(row => row.branch === "smoke")) return "smoke";
+  return report.generations[0]?.branch ?? null;
+}
+function bestGeneration(rows: Generation[]): Generation | null {
+  return rows.reduce<Generation | null>((best, row) => {
+    if (!best || row.heldout_mean > best.heldout_mean ||
+      (row.heldout_mean === best.heldout_mean && row.generation > best.generation)) return row;
+    return best;
+  }, null);
+}
+function ArtifactList({ artifacts }: { artifacts: Artifact[] }) {
+  if (artifacts.length === 0) return <PanelEmpty>No hay artefactos en esta corrida.</PanelEmpty>;
+  return <ul className="artifact-list">{artifacts.slice(0, 5).map(item => <li key={item.path}>
+    <span className={item.accepted ? "artifact-name" : "artifact-name rejected-name"}>{item.path}</span>
+    <span className="artifact-meta">Gen {item.generation} · {item.origin_failures} fallos</span>
+    <span className={`badge gate-badge ${item.accepted ? "gate-accepted" : "gate-rejected"}`}>{item.accepted ? "Aprobada" : "Rechazada"}</span>
+  </li>)}</ul>;
+}
+function Activity({ progress }: { progress: Progress | null }) {
+  if (!progress?.lineas.length) return <PanelEmpty>No hay actividad reciente.</PanelEmpty>;
+  return <ol className="activity-lines" aria-live="polite">{progress.lineas.slice(-6).map((line, index) => <li key={`${index}-${line}`}><code>{line}</code></li>)}</ol>;
+}
+export function EvolutionView({ reports, artifacts, progress }: {
+  reports: ViewState<ReportsFile>;
+  artifacts: ViewState<Artifact[]>;
+  progress: ViewState<Progress>;
+}) {
+  return <AppShell active="/" section="Operaciones automotrices · held-out" title="Evolución"
+    description="Sigue el rendimiento de cada generación y revisa la evidencia que explica sus cambios.">
+    <DataGate state={reports} source="public/data/reports.json" title="La curva de aprendizaje aparecerá aquí"
+      description="Esta vista compara el éxito en held-out, el conjunto que el destilador nunca ve.">
+      {report => {
+        const branch = branchToShow(report);
+        const rows = report.generations.filter(row => row.branch === branch).sort((a, b) => a.generation - b.generation);
+        const best = bestGeneration(rows);
+        const latest = rows.at(-1) ?? null;
+        const artifactRows = artifacts.status === "ready" ? artifacts.data.filter(item => item.branch === branch) : [];
+        const progressData = progress.status === "ready" ? progress.data : null;
+        return <>
+          <div className="overview-actions">
+            <button className="btn" type="button" disabled aria-describedby="actions-note">Exportar CSV</button>
+            <button className="btn btn-primary" type="button" disabled aria-describedby="actions-note">Generar siguiente</button>
+            <span className="action-note" id="actions-note">Las acciones se habilitarán al conectar la API.</span>
+          </div>
+          <div className="grid g4">
+            <MetricCard label="Éxito held-out" value={pct(best?.heldout_mean)} note={best ? `Mejor: generación ${best.generation}` : "Sin generaciones"} />
+            <MetricCard label="Pasos por tarea" value={num(best?.avg_steps)} note="En la mejor generación" />
+            <MetricCard label="Correlación del juez" value={num(best?.judge_correlation, 2)} note="No define la métrica oficial" />
+            <MetricCard label="Último delta" value={signedPct(latest?.delta)} note={latest ? `Generación ${latest.generation}` : "Sin generaciones"} />
+          </div>
+          <section className="card overview-chart">
+            <SectionHeading eyebrow="Rendimiento" title="Tasa de éxito por generación">
+              <span className="chart-caption">Media y desviación entre semillas</span>
+            </SectionHeading>
+            <FitnessChart rows={rows} />
+          </section>
+          <div className="grid g2 overview-lower">
+            <section className="card"><SectionHeading eyebrow="Progreso" title="Delta por generación" />
+              <DeltaBars rows={rows} />
+            </section>
+            <section className="card"><SectionHeading eyebrow="Evidencia" title="Artefactos generados" />
+              {artifacts.status === "error" ? <p className="inline-error">{artifacts.message}</p> : <ArtifactList artifacts={artifactRows} />}
+              {artifacts.status === "loading" && <div className="skeleton skeleton-row" />}
+              {artifacts.status === "empty" && <PanelEmpty>Los artefactos se mostrarán al cargar artifacts.json.</PanelEmpty>}
+            </section>
+          </div>
+          <section className="card activity-panel"><SectionHeading eyebrow="Registro" title="Actividad reciente">
+            <span className="activity-status"><span className={`status-dot ${progressData?.corriendo ? "status-active" : ""}`} />{progressData?.corriendo ? "En curso" : "Sin actividad"}</span>
+          </SectionHeading>
+            {progress.status === "error" ? <p className="inline-error">{progress.message}</p> : <Activity progress={progressData} />}
+            {progress.status === "loading" && <div className="skeleton skeleton-row" />}
+          </section>
+          <p className="overview-note">La métrica oficial es el éxito en held-out, medida por el verificador programático. El juez LLM se muestra solo como referencia de calibración.</p>
+        </>;
+      }}
+    </DataGate>
+  </AppShell>;
+}
