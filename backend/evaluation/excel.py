@@ -1,4 +1,4 @@
-"""Excel de Evolución: las mismas filas que el CSV de la web, con tabla con formato, resumen y gráficas.
+"""Excel de Evolución: las filas de cada generación con tabla con formato, resumen y gráficas.
 
 Lo genera exportar_excel.py para la ruta /api/excel. Los datos salen de export.filas_de_rama(), así que
 el Excel y la vista Evolución siempre muestran los mismos números. Nada se rellena: un valor ausente
@@ -24,7 +24,7 @@ FILA_ENCABEZADOS = 4
 ALTO_GRAFICA_CM, ANCHO_LINEA_CM, ANCHO_BARRAS_CM = 8.5, 16, 14
 GROSOR_HELDOUT, GROSOR_TRAIN = 32000, 19050  # EMU: ~2.5 pt y 1.5 pt
 
-# (clave de la fila, encabezado, formato de número, ancho de columna). Mismo orden que web/lib/csv.ts
+# (clave de la fila, encabezado, formato de número, ancho de columna). Las claves son las de `Generation` (web/lib/types.ts)
 COLUMNAS: list[tuple[str, str, str, int]] = [
     ("branch", "Rama", "@", 10),
     ("generation", "Generación", "0", 12),
@@ -43,11 +43,19 @@ COLUMNAS: list[tuple[str, str, str, int]] = [
     ("topology", "Topología", "@", 14),
 ]
 COL_GENERACION, COL_HELDOUT, COL_TRAIN, COL_PASOS, COL_ESCALADOS = 2, 4, 6, 9, 12
-ANCHO_ETIQUETAS = 34
+# El resumen usa A:C unidas para la etiqueta y D para el valor: así no ensancha la columna Rama de la tabla
+COL_ETIQUETA_FIN, COL_VALOR = 3, 4
 
 
 def _letra(columna: int) -> str:
     return get_column_letter(columna)
+
+
+def _solo_valor() -> DataLabelList:
+    """Etiquetas con el número nada más. Si no se apagan las demás opciones, Excel las muestra todas
+    (nombre de la serie, categoría y símbolo de la leyenda pegados al valor)."""
+    return DataLabelList(showVal=True, showSerName=False, showCatName=False, showLegendKey=False,
+                         showPercent=False, showBubbleSize=False)
 
 
 def _escribir_tabla(ws: Worksheet, filas: list[dict[str, Any]]) -> int:
@@ -87,21 +95,24 @@ def _escribir_resumen(ws: Worksheet, ultima: int) -> int:
         ("Éxito held-out en la primera generación", f"=INDEX({heldout},1)", "0.0%"),
         ("Mejor éxito held-out", f"=MAX({heldout})", "0.0%"),
         ("Generación con el mejor held-out", f"=INDEX({generacion},MATCH(MAX({heldout}),{heldout},0))", "0"),
-        ("Mejora desde la primera generación", f"=B{inicio + 2}-B{inicio + 1}", "+0.0%;-0.0%;-"),
+        ("Mejora desde la primera generación",
+         f"={_letra(COL_VALOR)}{inicio + 2}-{_letra(COL_VALOR)}{inicio + 1}", "+0.0%;-0.0%;-"),
         ("Generaciones evaluadas", f"=COUNT({generacion})", "0"),
     ]
     titulo = ws.cell(row=inicio, column=1, value="Resumen (se recalcula si cambian los datos)")
     titulo.font = Font(name=FUENTE, size=11, bold=True, color=TINTA)
     borde = Border(bottom=Side(style="thin", color=LINEA))
     for k, (etiqueta, formula, formato) in enumerate(renglones, start=1):
-        a = ws.cell(row=inicio + k, column=1, value=etiqueta)
-        b = ws.cell(row=inicio + k, column=2, value=formula)
+        fila = inicio + k
+        ws.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=COL_ETIQUETA_FIN)
+        a = ws.cell(row=fila, column=1, value=etiqueta)
+        b = ws.cell(row=fila, column=COL_VALOR, value=formula)
         a.font = Font(name=FUENTE, size=10, color=TINTA)
         b.font = Font(name=FUENTE, size=11, bold=True, color=TINTA)
         b.number_format = formato
         b.alignment = Alignment(horizontal="right")
-        a.border = b.border = borde
-    ws.column_dimensions["A"].width = ANCHO_ETIQUETAS
+        for columna in range(1, COL_VALOR + 1):
+            ws.cell(row=fila, column=columna).border = borde
     return inicio + len(renglones)
 
 
@@ -145,9 +156,10 @@ def _grafica_exito(ws: Worksheet, ultima: int) -> LineChart:
         serie.graphicalProperties.line.width = grosor
         serie.marker.symbol, serie.marker.size = "circle", tamano
         serie.marker.graphicalProperties.solidFill = serie.marker.graphicalProperties.line.solidFill = color
+        serie.smooth = False  # segmentos rectos: una curva suavizada sugiere valores entre generaciones
     train.graphicalProperties.line.dashStyle = "dash"
-    heldout.dLbls = DataLabelList()
-    heldout.dLbls.showVal, heldout.dLbls.position, heldout.dLbls.numFmt = True, "t", "0%"
+    heldout.dLbls = _solo_valor()  # toma el formato 0.0 % de la celda
+    heldout.dLbls.position = "t"
     grafica.x_axis.delete = grafica.y_axis.delete = False
     grafica.legend.position = "b"
     grafica.height, grafica.width = ALTO_GRAFICA_CM, ANCHO_LINEA_CM
@@ -166,8 +178,7 @@ def _grafica_eficiencia(ws: Worksheet, ultima: int) -> BarChart:
     grafica.set_categories(Reference(ws, min_col=COL_GENERACION, min_row=FILA_ENCABEZADOS + 1, max_row=ultima))
     for serie, color in zip(grafica.series, (MORADO, NARANJA)):
         serie.graphicalProperties.solidFill = color
-        serie.dLbls = DataLabelList()
-        serie.dLbls.showVal = True
+        serie.dLbls = _solo_valor()
     grafica.x_axis.delete = grafica.y_axis.delete = False
     grafica.legend.position = "b"
     grafica.height, grafica.width = ALTO_GRAFICA_CM, ANCHO_BARRAS_CM
