@@ -7,6 +7,8 @@ const LEFT = 56;
 const RIGHT = 20;
 const TOP = 20;
 const BOTTOM = 42;
+const SEPARACION_ETIQUETA = 12; // px entre el punto y su porcentaje
+const DIFERENCIA_VISIBLE = 0.005; // por debajo de medio punto, train y held-out se dibujan encimadas
 
 function xAt(index: number, count: number): number {
   return count < 2 ? (LEFT + WIDTH - RIGHT) / 2 : LEFT + index * (WIDTH - LEFT - RIGHT) / (count - 1);
@@ -21,6 +23,12 @@ function linePoints(rows: Generation[], key: "heldout_mean" | "train_mean"): str
 export function FitnessChart({ rows, label = "Tasa de éxito por generación" }: { rows: Generation[]; label?: string }) {
   if (rows.length === 0) return <div className="panel-empty"><span className="panel-empty-mark" aria-hidden="true">—</span><p>La gráfica aparecerá cuando haya resultados de evaluación.</p></div>;
   const sorted = [...rows].sort((a, b) => a.generation - b.generation);
+  // Explica lo que no se ve, para que la gráfica no parezca rota
+  const notas = [
+    ...(sorted.every(row => Math.abs(row.train_mean - row.heldout_mean) < DIFERENCIA_VISIBLE)
+      ? ["La línea de train queda debajo de la de held-out porque valen lo mismo en todas las generaciones."] : []),
+    ...(sorted.every(row => row.seeds <= 1) ? ["Con una sola semilla no hay barras de desviación."] : []),
+  ];
   const summary = sorted.map(row => `generación ${row.generation}: ${pct(row.heldout_mean)} held-out`).join(", ");
   return <div className="chart-wrap">
     <svg className="fitness-chart" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={`${label}. ${summary}`}>
@@ -43,9 +51,13 @@ export function FitnessChart({ rows, label = "Tasa de éxito por generación" }:
       <polyline className="chart-heldout" points={linePoints(sorted, "heldout_mean")} />
       {sorted.map((row, index) => <g key={row.generation}>
         <circle className="chart-point" cx={xAt(index, sorted.length)} cy={yAt(row.heldout_mean)} r="4" />
+        <text className="chart-value" x={xAt(index, sorted.length)} y={yAt(row.heldout_mean) - SEPARACION_ETIQUETA} textAnchor="middle">{pct(row.heldout_mean)}</text>
+        {Math.abs(row.train_mean - row.heldout_mean) >= DIFERENCIA_VISIBLE &&
+          <text className="chart-value chart-value-train" x={xAt(index, sorted.length)} y={yAt(row.train_mean) + SEPARACION_ETIQUETA + 8} textAnchor="middle">{`train ${pct(row.train_mean)}`}</text>}
         <text className="chart-x-label" x={xAt(index, sorted.length)} y={HEIGHT - 12} textAnchor="middle">Gen {row.generation}</text>
       </g>)}
     </svg>
     <div className="chart-legend"><span className="legend-heldout">Held-out</span><span className="legend-train">Train</span><span className="legend-error">Desviación entre semillas</span></div>
+    {notas.length > 0 && <p className="chart-note">{notas.join(" ")}</p>}
   </div>;
 }

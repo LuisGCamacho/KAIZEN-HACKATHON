@@ -324,3 +324,8 @@ button,input{font:inherit}
 @media(max-width:1280px){.live-layout.con-historial{grid-template-columns:220px minmax(0,1fr)}.live-layout.con-historial .live-timeline{grid-column:1/-1;max-height:none}}
 @media(max-width:1024px){.live-layout.con-historial{grid-template-columns:1fr}.live-historial{max-height:260px}}
 @media(max-width:480px){.selector-generacion{flex-wrap:wrap}.selector-generacion select{max-width:100%}}
+
+/* Evolución: valores sobre los puntos y nota de lo que no se ve en la gráfica */
+.fitness-chart .chart-value{fill:var(--ink);font-family:var(--f-mono);font-size:12px;font-variant-numeric:tabular-nums}
+.fitness-chart .chart-value-train{fill:var(--ink-3);font-size:11px}
+.chart-note{margin:8px 0 0;color:var(--ink-3);font-size:12px}
