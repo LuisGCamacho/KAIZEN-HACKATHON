@@ -9,6 +9,7 @@ from types import ModuleType, SimpleNamespace
 import pytest
 
 import live
+from test_fase2 import sustituir_modulo
 from core import almacen, archivos, paths
 from core.contracts import BASE_TOOLS, AgentSpec, GenerationReport
 
@@ -29,12 +30,12 @@ def rama_con_dos_generaciones(datos, monkeypatch):
         def run(mensajes, on_event):
             on_event({"type": "tool_call", "agent": f"gen_{spec.generation}", "tool": "politica_garantia",
                       "args": {"auto_id": "A010"}, "generated": False})
-            return SimpleNamespace(final="Sí, 12 meses.", tokens=50, cost_usd=0.0001, steps=[1], exhausted=False)
+            return SimpleNamespace(final_answer="Sí, 12 meses.", tokens=50, cost_usd=0.0001, steps=[1], exhausted=False)
         return run
 
     builder = ModuleType("agents.builder")
     builder.build = build
-    monkeypatch.setitem(sys.modules, "agents.builder", builder)
+    sustituir_modulo(monkeypatch, "agents.builder", builder)
     monkeypatch.setattr(live, "_eventos", [])
 
 
@@ -56,7 +57,7 @@ def test_best_usa_la_mejor_generacion(rama_con_dos_generaciones, monkeypatch, ca
 def test_generacion_numerica_y_conversacion_guardada(rama_con_dos_generaciones, monkeypatch, capsys):
     eventos = correr(monkeypatch, capsys, {"messages": PREGUNTA, "generation": 0, "branch": "main"})
     assert eventos[0]["generation"] == 0
-    guardadas = list(paths.LIVE.glob("*.json"))
+    guardadas = list(paths.LIVE_RUNS.glob("*.json"))
     assert len(guardadas) == 1
     assert json.loads(guardadas[0].read_text(encoding="utf-8"))["messages"] == PREGUNTA
 

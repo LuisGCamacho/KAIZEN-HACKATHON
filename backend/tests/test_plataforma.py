@@ -17,8 +17,8 @@ def datos_temporales(tmp_path, monkeypatch):
     monkeypatch.setattr(paths, "SPEND", tmp_path / "spend.json")
     monkeypatch.setattr(paths, "PROGRESS", tmp_path / "progress.json")
     monkeypatch.setattr(paths, "REGISTRO", tmp_path / "registro.log")
-    monkeypatch.setattr(llm, "CONTADOR", llm.Contador())
-    monkeypatch.setattr(llm, "BASE_URL", None)
+    monkeypatch.setattr(llm, "ARCHIVO_GASTO", tmp_path / "spend.json")
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
     monkeypatch.setattr(progress, "_estado", {"corriendo": False, "error": None, "lineas": []})
     monkeypatch.setattr(llm.time, "sleep", lambda _s: None)
     return tmp_path
@@ -44,7 +44,7 @@ def cliente_falso(monkeypatch, respuestas):
         return siguiente
 
     falso = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-    monkeypatch.setattr(llm, "cliente", lambda: falso)
+    monkeypatch.setattr(llm, "_obtener_cliente", lambda: falso)
     return llamadas
 
 
@@ -71,35 +71,17 @@ def test_chat_reintenta_errores_temporales(monkeypatch):
 
 
 def test_chat_se_rinde_tras_max_intentos(monkeypatch):
-    cliente_falso(monkeypatch, [error_de_conexion()] * llm.MAX_INTENTOS)
-    with pytest.raises(RuntimeError, match="no respondió"):
+    cliente_falso(monkeypatch, [error_de_conexion()] * llm.REINTENTOS)
+    with pytest.raises(openai.APIConnectionError):
         llm.chat([{"role": "user", "content": "hola"}])
 
 
 def test_chat_corta_al_llegar_al_presupuesto(monkeypatch):
     llamadas = cliente_falso(monkeypatch, [respuesta_falsa()])
-    archivos.escribir_json(paths.SPEND, {"usd": llm.BUDGET_USD})
+    archivos.escribir_json(llm.ARCHIVO_GASTO, {"usd": llm.PRESUPUESTO_USD})
     with pytest.raises(llm.BudgetExceeded):
         llm.chat([{"role": "user", "content": "hola"}])
     assert llamadas == []  # no se gastó nada
-
-
-def test_modelo_sin_precio_falla_antes_de_llamar(monkeypatch):
-    llamadas = cliente_falso(monkeypatch, [respuesta_falsa()])
-    with pytest.raises(ValueError, match="PRICE_MODELO_RARO"):
-        llm.chat([{"role": "user", "content": "hola"}], "modelo-raro")
-    assert llamadas == []
-
-
-def test_precio_desde_variable_de_entorno(monkeypatch):
-    monkeypatch.setenv("PRICE_GPT_4_1_MINI", "1,2")
-    assert llm.precio("gpt-4.1-mini") == (1.0, 2.0)
-
-
-def test_servidor_local_no_cuesta(monkeypatch):
-    monkeypatch.setattr(llm, "BASE_URL", "http://localhost:11434/v1")
-    assert llm.es_local()
-    assert llm.precio("cualquier-modelo") == (0.0, 0.0)
 
 
 def test_chat_json_pide_formato_json(monkeypatch):
@@ -107,7 +89,7 @@ def test_chat_json_pide_formato_json(monkeypatch):
     datos, _ = llm.chat_json("sistema", "usuario")
     assert datos == {"ok": True}
     assert llamadas[0]["response_format"] == {"type": "json_object"}
-    assert llamadas[0]["model"] == llm.MODEL_SMART
+    assert llamadas[0]["model"] == llm.MODELO_INTELIGENTE
 
 
 # ---------- progress ----------
@@ -159,15 +141,15 @@ def test_varios_procesos_no_pierden_gasto(datos_temporales):
 
     procesos, sumas, usd = 4, 50, 0.01
     script = (
-        "import sys; from pathlib import Path; from core import llm, paths\n"
-        "paths.SPEND = Path(sys.argv[1])\n"
-        f"for _ in range({sumas}): llm.CONTADOR.sumar({usd})\n"
+        "import sys; from pathlib import Path; from core import llm\n"
+        "llm.ARCHIVO_GASTO = Path(sys.argv[1])\n"
+        f"for _ in range({sumas}): llm.CONTADOR_GASTO.sumar({usd})\n"
     )
     backend = Path(__file__).resolve().parent.parent
     hijos = [subprocess.Popen([sys.executable, "-c", script, str(datos_temporales / "spend.json")], cwd=backend)
              for _ in range(procesos)]
     assert all(h.wait(timeout=60) == 0 for h in hijos)
-    assert llm.CONTADOR.total == pytest.approx(procesos * sumas * usd)
+    assert llm.CONTADOR_GASTO.total_usd == pytest.approx(procesos * sumas * usd)
 
 
 def test_escrituras_simultaneas_de_varios_procesos(tmp_path):

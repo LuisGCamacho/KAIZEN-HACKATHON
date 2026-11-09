@@ -5,6 +5,7 @@ dobles mínimos, así estos tests no dependen de que existan ni llaman al LLM.
 """
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import sys
@@ -36,6 +37,14 @@ def traza(spec: AgentSpec, tarea: dict, semilla: int) -> Trace:
                  100, 0.001)
 
 
+def sustituir_modulo(monkeypatch, nombre: str, modulo: ModuleType) -> None:
+    """Cambia paquete.modulo en sys.modules y en el paquete: si el paquete real ya se importó,
+    `from paquete import modulo` lee su atributo y no pasaría por sys.modules."""
+    monkeypatch.setitem(sys.modules, nombre, modulo)
+    paquete, _, hijo = nombre.rpartition(".")
+    monkeypatch.setattr(importlib.import_module(paquete), hijo, modulo, raising=False)
+
+
 def instalar_dobles(monkeypatch) -> dict[str, list]:
     llamadas: dict[str, list] = {"meta_destilador": [], "destilar": []}
 
@@ -65,7 +74,7 @@ def instalar_dobles(monkeypatch) -> dict[str, list]:
         g = padre.generation + 1
         playbook = f"playbooks/escalado_innecesario_g{g}.md"
         (paths.DATA / playbook).write_text("No escales.", encoding="utf-8")
-        artifacts.registrar(Artifact(f"pb_g{g}", "playbook", g, branch, "escalado_innecesario", 3, True, playbook))
+        artifacts.add(Artifact(f"pb_g{g}", "playbook", g, branch, "escalado_innecesario", 3, True, playbook).to_dict())
         return AgentSpec(g, branch, f"{padre.branch}/gen_{padre.generation}", run.PROMPT_GEN0, "single_react",
                          list(BASE_TOOLS), [playbook], [], version_destilador, version_rubrica,
                          "menos escalados", {"escalado_innecesario": 3}, [f"pb_g{g}"])
@@ -85,7 +94,7 @@ def instalar_dobles(monkeypatch) -> dict[str, list]:
     for nombre, atributos in modulos.items():
         modulo = ModuleType(nombre)
         modulo.__dict__.update(atributos)
-        monkeypatch.setitem(sys.modules, nombre, modulo)
+        sustituir_modulo(monkeypatch, nombre, modulo)
     (paths.PROMPTS / "gen_0.md").write_text("Eres un asistente.", encoding="utf-8")
     return llamadas
 
@@ -197,8 +206,8 @@ def test_versions_guarda_e_historial(datos):
 
 def test_artifacts_sin_duplicados(datos):
     a = Artifact("t", "tool", 1, "main", "dias_incorrectos", 2, False, "tools/rejected/t.py")
-    artifacts.registrar(a)
-    artifacts.registrar(Artifact(**{**a.to_dict(), "accepted": True}))
+    artifacts.add(a.to_dict())
+    artifacts.add({**a.to_dict(), "accepted": True, "code": "def t(): ..."})
     assert [x.accepted for x in artifacts.listar()] == [True]
 
 

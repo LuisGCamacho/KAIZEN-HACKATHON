@@ -85,7 +85,7 @@ def construir_agente(spec: AgentSpec):
 
 def guardar_conversacion(mensajes: list[dict[str, str]], branch: str, generacion: int | None) -> None:
     sello = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-    archivos.escribir_json(paths.LIVE / f"{sello}.json", {"branch": branch, "generation": generacion,
+    archivos.escribir_json(paths.LIVE_RUNS / f"{sello}.json", {"branch": branch, "generation": generacion,
                                                           "messages": mensajes, "events": _eventos})
 
 
@@ -104,7 +104,7 @@ def main() -> int:
         emitir({"type": "start", "generation": spec.generation, "branch": branch, "topology": spec.topology,
                 "sub_agents": spec.sub_agents, "tools": spec.tools_enabled, "playbooks": len(spec.playbooks)})
         resultado = construir_agente(spec)(mensajes, emitir)
-        emitir({"type": "final", "agent": f"gen_{spec.generation}", "text": resultado.final,
+        emitir({"type": "final", "agent": f"gen_{spec.generation}", "text": resultado.final_answer,
                 "tokens": resultado.tokens, "cost_usd": round(resultado.cost_usd, 6),
                 "steps": len(resultado.steps), "exhausted": resultado.exhausted})
     except Exception as e:  # frontera: el cliente de la demo debe ver el motivo, no un stream cortado

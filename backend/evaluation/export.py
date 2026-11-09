@@ -139,13 +139,13 @@ def _ruta_tests(ruta_codigo: str) -> str:
 def artifacts_con_contenido() -> list[dict[str, Any]]:
     """Artefactos con su texto (playbook) o su código y tests (tool) para la vista Herramientas."""
     resultado = []
-    for a in artifacts.listar():
-        fila = a.to_dict()
-        if a.kind == "playbook":
-            fila["content"] = _leer(a.path)
+    for a in artifacts.all_artifacts():
+        fila = dict(a)  # si el destilador ya guardó content/code/tests, se respeta lo suyo
+        if a["kind"] == "playbook":
+            fila.setdefault("content", _leer(a["path"]))
         else:
-            fila["code"] = _leer(a.path)
-            fila["tests"] = _leer(_ruta_tests(a.path))
+            fila.setdefault("code", _leer(a["path"]))
+            fila.setdefault("tests", _leer(_ruta_tests(a["path"])))
         resultado.append(fila)
     return resultado
 
