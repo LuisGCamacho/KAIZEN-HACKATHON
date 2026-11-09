@@ -25,8 +25,8 @@ function Icon({ name }: { name: IconName }) {
 }
 function BrandMark() {
   return <svg className="brand-mark" viewBox="0 0 24 24" role="img" aria-label="KAIZEN">
-    <rect x="1" y="1" width="22" height="22" rx="6" fill="none" stroke="currentColor" strokeWidth="1.6" />
-    <path d="M5.5 17.5h4v-4h4v-4h4v-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" />
+    <rect x="1" y="1" width="22" height="22" rx="6" fill="var(--ink)" />
+    <path d="M5.5 17.5h4v-4h4v-4h4v-4" fill="none" stroke="var(--bg)" strokeWidth="2" strokeLinecap="square" />
   </svg>;
 }
 export function AppShell({ active, title, description, section, children }: {
