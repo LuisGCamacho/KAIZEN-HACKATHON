@@ -4,6 +4,7 @@
   --ink:#0D0D0D; --ink-2:#5A5A5A; --ink-3:#707070; --ink-4:#ACACAC;
   --panel:#F7F7F8; --line:#E8E8E8; --line-strong:#CFCFCF; --bg:#FFFFFF;
   --soft:#F0F0F0; --nav-active:#E7E7E8; --seal:#C8322D;
+  --diff-add:#E6F2E9; --diff-del:#F8E7E6;
   --r-control:8px; --r-button:10px; --r-card:12px; --r-pill:999px;
   --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px; --s-6:24px; --s-8:32px; --s-10:40px;
   --f-ui:Inter,"Segoe UI",Arial,sans-serif; --f-mono:"JetBrains Mono","Cascadia Code",Consolas,monospace;
@@ -353,3 +354,33 @@ button,input{font:inherit}
 .chat-comparacion .chat-msg{max-width:100%}
 @media(max-width:1024px){.live-layout.comparando.con-historial{grid-template-columns:1fr}}
 @media(max-width:720px){.chat-comparacion{grid-template-columns:1fr}}
+
+/* Evolución: rama control (comparación, discreta) y reescrituras del meta-loop (autoría de la máquina: seal) */
+.chart-control{fill:none;stroke:var(--ink-4);stroke-width:1.5}
+.chart-control-point{fill:var(--bg);stroke:var(--ink-4);stroke-width:1.5}
+.chart-meta line{stroke:var(--seal);stroke-width:1;stroke-dasharray:3 3}
+.chart-meta text{fill:var(--seal);font-family:var(--f-mono);font-size:10px}
+.chart-legend .legend-control::before{border-top:1.5px solid var(--ink-4)}
+.chart-legend .legend-meta::before{height:12px;width:0;border-left:1px dashed var(--seal)}
+
+/* Linaje: diff del prompt (además del color, cada línea lleva + o −) y tarjetas seleccionables */
+.lineage-boton{width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.lineage-boton:hover{border-color:var(--line-strong)}
+.lineage-ayuda{color:var(--ink-3);font-size:12px;margin-left:8px}
+.diff-resumen{display:flex;gap:16px;margin:0 0 8px;color:var(--ink-2);font-family:var(--f-mono);font-size:12px}
+.diff-panel{padding:8px 0}
+.diff-linea{display:block;padding:0 14px 0 8px}
+.diff-signo{display:inline-block;width:16px;color:var(--ink-3)}
+.diff-agregada{background:var(--diff-add)}
+.diff-quitada{background:var(--diff-del);color:var(--ink-2);text-decoration:line-through;text-decoration-color:var(--ink-4)}
+.diff-agregada .diff-signo,.diff-quitada .diff-signo{color:var(--ink)}
+/* Herramientas: filtros por resultado del gate y por tipo */
+.filtros{display:flex;flex-wrap:wrap;gap:8px 20px;margin-bottom:16px}
+.filtro-grupo{display:flex;flex-wrap:wrap;gap:6px}
+.chip-filtro{min-height:36px;padding:0 12px;border:1px solid var(--line-strong);border-radius:var(--r-pill);background:var(--bg);color:var(--ink-2);font:inherit;font-size:13px;cursor:pointer}
+.chip-filtro span{color:var(--ink-3);font-family:var(--f-mono);font-size:11px}
+.chip-filtro[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:var(--bg)}
+.chip-filtro[aria-pressed="true"] span{color:var(--ink-4)}
+.diff-linea{display:flex;gap:6px}
+.diff-signo{flex:none}
+.diff-texto{flex:1;min-width:0;white-space:pre-wrap;overflow-wrap:anywhere}

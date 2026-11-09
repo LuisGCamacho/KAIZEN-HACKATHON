@@ -3,7 +3,7 @@ import { AppShell } from "../app-shell";
 import { DeltaBars } from "../charts/delta-bars";
 import { FitnessChart } from "../charts/fitness-chart";
 import { DataGate, MetricCard, PanelEmpty, SectionHeading } from "../ui/data-display";
-import { num, pct, signedPct } from "../../lib/format";
+import { num, pct, signedPct, usd } from "../../lib/format";
 import type { Artifact, Generation, Progress, ReportsFile } from "../../lib/types";
 import type { ViewState } from "../../lib/view-state";
 
@@ -46,7 +46,11 @@ export function EvolutionView({ reports, artifacts, progress, generar }: {
         const branch = branchToShow(report);
         const rows = report.generations.filter(row => row.branch === branch).sort((a, b) => a.generation - b.generation);
         const best = bestGeneration(rows);
-        const latest = rows.at(-1) ?? null;
+        const gen0 = rows.find(row => row.generation === 0) ?? null;
+        const mejora = best && gen0 ? best.heldout_mean - gen0.heldout_mean : null;
+        const gasto = rows.reduce((total, row) => total + row.cost_usd, 0);
+        // La rama control se dibuja como comparación solo junto a main, que es de donde nace
+        const control = branch === "main" ? report.generations.filter(row => row.branch === "control") : [];
         const artifactRows = artifacts.status === "ready" ? artifacts.data.filter(item => item.branch === branch) : [];
         const progressData = progress.status === "ready" ? progress.data : null;
         return <>
@@ -64,15 +68,16 @@ export function EvolutionView({ reports, artifacts, progress, generar }: {
           {generar?.confirmacion}
           <div className="grid g4">
             <MetricCard label="Éxito held-out" value={pct(best?.heldout_mean)} note={best ? `Mejor: generación ${best.generation}` : "Sin generaciones"} />
-            <MetricCard label="Pasos por tarea" value={num(best?.avg_steps)} note="En la mejor generación" />
+            <MetricCard label="Mejora desde gen 0" value={signedPct(mejora)}
+              note={best && gen0 ? `${pct(gen0.heldout_mean)} → ${pct(best.heldout_mean)} en held-out` : "Sin generación 0"} />
             <MetricCard label="Correlación del juez" value={num(best?.judge_correlation, 2)} note="No define la métrica oficial" />
-            <MetricCard label="Último delta" value={signedPct(latest?.delta)} note={latest ? `Generación ${latest.generation}` : "Sin generaciones"} />
+            <MetricCard label="Gasto de la rama" value={usd(gasto)} note={`${rows.length} ${rows.length === 1 ? "generación" : "generaciones"} evaluadas`} />
           </div>
           <section className="card overview-chart">
             <SectionHeading eyebrow="Rendimiento" title="Tasa de éxito por generación">
               <span className="chart-caption">Media y desviación entre semillas</span>
             </SectionHeading>
-            <FitnessChart rows={rows} />
+            <FitnessChart rows={rows} control={control} />
           </section>
           <div className="grid g2 overview-lower">
             <section className="card"><SectionHeading eyebrow="Progreso" title="Delta por generación" />
