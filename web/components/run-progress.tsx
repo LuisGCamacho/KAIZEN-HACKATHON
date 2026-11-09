@@ -1,7 +1,11 @@
 "use client";
 
+import { useState } from "react";
+
 import { useJson } from "../lib/use-json";
+import { claveGuardada, useRun } from "../lib/use-run";
 import type { Progress } from "../lib/types";
+import { ConfirmarAccion } from "./confirmar-accion";
 
 const POLLING_MS = 2_000;
 
@@ -26,13 +30,16 @@ function pasoActual(progreso: Progress): number {
 /** Panel visible en todas las vistas mientras hay una corrida, o cuando la última terminó con error. */
 export function RunProgress() {
   const estado = useJson("progress.json", { cadaMs: POLLING_MS });
+  const { lanzar, enviando, aviso, pideClave } = useRun();
+  const [confirmando, setConfirmando] = useState(false);
+  const [pedirClave, setPedirClave] = useState(false);
   if (estado.status !== "ready") return null;
   const progreso = estado.data;
   if (!progreso.corriendo && !progreso.error) return null;
 
   if (!progreso.corriendo) {
     return <section className="card run-progress run-progress-error" role="alert">
-      <p className="lbl">La última corrida se detuvo</p>
+      <p className="lbl">{progreso.fase === "cancelada" ? "La última corrida se canceló" : "La última corrida se detuvo"}</p>
       <p className="run-progress-error-texto">{progreso.error}</p>
       <p className="run-progress-nota">Las generaciones anteriores no se perdieron. Al lanzar una corrida nueva este aviso desaparece.</p>
     </section>;
@@ -48,11 +55,20 @@ export function RunProgress() {
         <h2>{actual >= 0 ? PASOS[actual].titulo : (progreso.fase ?? "Preparando")}</h2>
         {actual >= 0 && <p className="run-progress-detalle">{PASOS[actual].detalle}</p>}
       </div>
-      {evaluando && <div className="run-progress-cifra">
-        <span className="stat">{progreso.hechas ?? 0}/{progreso.total}</span>
-        <span className="run-progress-nota">{progreso.aciertos ?? 0} correctas hasta ahora</span>
-      </div>}
+      <div className="run-progress-lado">
+        {evaluando && <div className="run-progress-cifra">
+          <span className="stat">{progreso.hechas ?? 0}/{progreso.total}</span>
+          <span className="run-progress-nota">{progreso.aciertos ?? 0} correctas hasta ahora</span>
+        </div>}
+        <button className="btn" type="button" disabled={enviando || confirmando}
+          onClick={() => { setPedirClave(pideClave || !claveGuardada()); setConfirmando(true); }}>Detener corrida</button>
+      </div>
     </div>
+    {confirmando && <ConfirmarAccion accion="Detener" pedirClave={pedirClave} enviando={enviando}
+      explicacion="Se detiene la corrida ahora. Lo ya evaluado se pierde; si la generación ya estaba destilada, la próxima corrida la evaluará."
+      cancelar={() => setConfirmando(false)}
+      confirmar={clave => { setConfirmando(false); void lanzar("cancel", clave); }} />}
+    {aviso && <p className="run-progress-nota" role="status">{aviso}</p>}
     {porcentaje !== null && <div className="run-progress-barra" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={porcentaje}>
       <span style={{ width: `${porcentaje}%` }} />
     </div>}

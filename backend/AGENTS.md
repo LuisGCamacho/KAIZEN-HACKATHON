@@ -190,6 +190,7 @@ Si cambias la forma de alguno, actualiza `web/lib/types.ts` y avisa.
 | `CODEX_EFFORT` / `CODEX_EFFORT_SMART` | `low` / `medium` | Esfuerzo de razonamiento del agente y juez / del destilador y meta-loop |
 | `KAIZEN_TASKS` | `todas` | `reducido`: gen0/next/loop evalúan 50 tareas fijas (5 held-out + 5 train por familia). La curva sigue siendo comparable entre generaciones |
 | `KAIZEN_JUDGE` | `on` | `off`: el juez no se llama (notas en `None`); se pierde la correlación del juez y el meta-juez no recalibra. La métrica oficial no cambia |
+| `KAIZEN_ADMIN_KEY` | — | **Lo lee la web.** Clave que exigen correr, cancelar y reset en `/api/run` (cabecera `x-kaizen-admin`). Sin ella se permiten: solo para desarrollo local |
 | `KAIZEN_PYTHON` | `backend/.venv/…/python` | **Lo lee la web**, no el backend (`web/.env.local` o el entorno del servicio): intérprete con el que `/api/run` y `/api/live` lanzan Python |
 
 ## Convenciones

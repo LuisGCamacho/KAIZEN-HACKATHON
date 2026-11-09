@@ -271,3 +271,12 @@ export type LiveConversation = {
 
 /** Resumen para la lista del historial (GET /api/conversaciones). */
 export type LiveConversationSummary = Omit<LiveConversation, "messages" | "turns"> & { turns: number };
+
+/** GET /api/gasto: gasto acumulado (spend.json) y sus topes según el proveedor activo. */
+export type Gasto = {
+  proveedor: "openai" | "codex";
+  usd: number;
+  presupuesto_usd: number;
+  tokens: number; // tokens de Codex (solo con KAIZEN_PROVIDER=codex)
+  tope_tokens: number | null; // null = sin tope configurado
+};

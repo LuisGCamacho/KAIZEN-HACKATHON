@@ -68,3 +68,19 @@ def terminar(error: str | None = None) -> None:
         _estado.update(corriendo=False, fase="error" if error else "terminado", error=error)
         _agregar_linea(f"ERROR: {error}" if error else "corrida terminada")
         _guardar()
+
+
+ESPERA_CANDADO_CANCELAR_S = 2  # la cancelación llega por señal: si el candado está tomado, no se espera para siempre
+
+
+def cancelar(motivo: str) -> None:
+    """Cierra la corrida desde el manejador de SIGTERM. El hilo principal pudo quedar con el candado tomado
+    justo cuando llegó la señal: se espera un momento y, si no se libera, se escribe igual."""
+    tomado = _candado.acquire(timeout=ESPERA_CANDADO_CANCELAR_S)
+    try:
+        _estado.update(corriendo=False, fase="cancelada", error=motivo)
+        _agregar_linea(f"CANCELADA: {motivo}")
+        _guardar()
+    finally:
+        if tomado:
+            _candado.release()

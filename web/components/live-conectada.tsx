@@ -1,34 +1,22 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { pct } from "../lib/format";
-import { leerNdjson } from "../lib/ndjson";
 import type { Generation, LiveConversation, LiveConversationSummary, LiveEvent } from "../lib/types";
+import { MEJOR, useConversacion } from "../lib/use-conversacion";
 import { useJson } from "../lib/use-json";
 import type { ViewState } from "../lib/view-state";
-import { LiveView, type MensajeChat } from "./views/live-view";
+import { LiveView, type PanelChat, type SelectorGeneracion } from "./views/live-view";
 
-type Mensaje = { role: "user" | "assistant"; content: string };
-
-const MEJOR = "best"; // valor del selector: live.py resuelve la mejor generación de la rama
 const POLLING_REPORTES_MS = 10_000;
+const GENERACION_BASE = "0"; // en modo comparar, la segunda columna arranca con el agente escrito a mano
 
 /** Mayor held-out y, en empate, la más nueva: la misma regla que backend/evaluation/export.py. */
 function mejorDe(filas: Generation[]): Generation | null {
   return filas.reduce<Generation | null>((mejor, fila) =>
     !mejor || fila.heldout_mean > mejor.heldout_mean ||
     (fila.heldout_mean === mejor.heldout_mean && fila.generation > mejor.generation) ? fila : mejor, null);
-}
-
-/** Reconstruye lo que ve el público a partir de una conversación guardada por live.py. */
-function chatDe(conversacion: LiveConversation): MensajeChat[] {
-  return conversacion.turns.flatMap<MensajeChat>(turno => [
-    { de: "cliente", texto: turno.question },
-    turno.answer !== null
-      ? { de: "agente", texto: turno.answer, herramientas: turno.tools }
-      : { de: "aviso", texto: `No se pudo responder: ${turno.error ?? "sin detalle"}` },
-  ]);
 }
 
 /** Resumen de las conversaciones guardadas; lista vacía si el servidor no responde (el chat sigue funcionando). */
@@ -41,10 +29,7 @@ async function leerHistorial(): Promise<LiveConversationSummary[]> {
   }
 }
 
-/**
- * Chat de la demo: manda la conversación completa a POST /api/live y muestra cada evento NDJSON en cuanto
- * llega. Cada conversación tiene un id; live.py la guarda en el servidor y aparece en el historial.
- */
+/** Chat de la demo con historial del servidor, selector de generación y modo comparar (dos generaciones). */
 export function LiveConectada() {
   const reportes = useJson("reports.json", { cadaMs: POLLING_REPORTES_MS });
   const generaciones = reportes.status === "ready" ? reportes.data.generations : [];
@@ -53,15 +38,12 @@ export function LiveConectada() {
   const filas = generaciones.filter(g => g.branch === rama).sort((a, b) => a.generation - b.generation);
   const mejor = mejorDe(filas);
 
-  const [generacion, setGeneracion] = useState<string>(MEJOR);
-  const [conversaciones, setConversaciones] = useState<LiveConversationSummary[]>([]);
-  const [actual, setActual] = useState<string | null>(null);
-  const [mensajes, setMensajes] = useState<Mensaje[]>([]);
-  const [chat, setChat] = useState<MensajeChat[]>([]);
-  const [eventos, setEventos] = useState<LiveEvent[] | null>(null);
+  const principal = useConversacion(rama, MEJOR);
+  const comparada = useConversacion(rama, GENERACION_BASE);
+  const [comparar, setComparar] = useState(false);
   const [texto, setTexto] = useState("");
-  const [enCurso, setEnCurso] = useState(false);
-  const abortar = useRef<AbortController | null>(null);
+  const [conversaciones, setConversaciones] = useState<LiveConversationSummary[]>([]);
+  const enCurso = principal.enCurso || comparada.enCurso;
 
   async function cargarHistorial() {
     setConversaciones(await leerHistorial());
@@ -72,102 +54,78 @@ export function LiveConectada() {
     return () => { vigente = false; };
   }, []);
 
-  function nueva(otraGeneracion?: string) {
-    setActual(null);
-    setMensajes([]);
-    setChat([]);
-    setEventos(null);
+  function nueva() {
+    principal.nueva();
+    comparada.nueva();
     setTexto("");
-    if (otraGeneracion !== undefined) setGeneracion(otraGeneracion);
   }
 
   async function seleccionar(id: string) {
     const respuesta = await fetch(`/api/conversaciones/${id}`, { cache: "no-store" });
     if (!respuesta.ok) return void cargarHistorial(); // la borraron desde otro navegador
-    const conversacion = await respuesta.json() as LiveConversation;
-    setActual(conversacion.id);
-    setMensajes(conversacion.messages);
-    setChat(chatDe(conversacion));
-    setEventos(conversacion.turns.flatMap(turno => turno.events));
-    setGeneracion(conversacion.generation !== null ? String(conversacion.generation) : MEJOR);
+    principal.cargar(await respuesta.json() as LiveConversation);
+    comparada.nueva();
+    setComparar(false);
     setTexto("");
   }
 
   async function borrar(id: string) {
     if (!window.confirm("¿Borrar esta conversación del historial?")) return;
     await fetch(`/api/conversaciones/${id}`, { method: "DELETE" });
-    if (id === actual) nueva();
+    if (id === principal.actual) principal.nueva();
     void cargarHistorial();
   }
 
-  // Una conversación habla siempre con la misma generación: cambiarla abre una conversación nueva
-  function cambiarGeneracion(valor: string) {
-    if (chat.length > 0) nueva(valor);
-    else setGeneracion(valor);
+  // Comparar exige que las dos columnas respondan exactamente las mismas preguntas: se empieza de cero
+  function alternarComparar() {
+    nueva();
+    setComparar(activo => !activo);
   }
 
   async function enviar() {
     const pregunta = texto.trim();
     if (!pregunta || enCurso) return;
-    const id = actual ?? crypto.randomUUID();
-    const conversacion: Mensaje[] = [...mensajes, { role: "user", content: pregunta }];
-    setActual(id);
-    setMensajes(conversacion);
-    setChat(previo => [...previo, { de: "cliente", texto: pregunta }]);
     setTexto("");
-    setEventos(previos => previos ?? []);
-    setEnCurso(true);
-    const control = new AbortController();
-    abortar.current = control;
-    let herramientasDelTurno = 0;
-    const agregar = (evento: LiveEvent) => {
-      setEventos(previos => [...(previos ?? []), evento]);
-      // "best" se fija a la generación que respondió, así los siguientes turnos hablan con el mismo agente
-      if (evento.type === "start") setGeneracion(String(evento.generation));
-      if (evento.type === "tool_call") herramientasDelTurno += 1;
-      if (evento.type === "final") {
-        setChat(previo => [...previo, { de: "agente", texto: evento.text, herramientas: herramientasDelTurno }]);
-        setMensajes(previos => [...previos, { role: "assistant", content: evento.text }]);
-      }
-      if (evento.type === "error") setChat(previo => [...previo, { de: "aviso", texto: `No se pudo responder: ${evento.message}` }]);
-    };
-    try {
-      const respuesta = await fetch("/api/live", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: conversacion, generation: generacion === MEJOR ? MEJOR : Number(generacion),
-                               branch: rama, conversation_id: id }),
-        signal: control.signal,
-      });
-      if (!respuesta.ok || !respuesta.body) {
-        const cuerpo = (await respuesta.json().catch(() => ({}))) as { error?: string };
-        agregar({ t: Date.now(), type: "error", message: cuerpo.error ?? `El servidor respondió ${respuesta.status}` });
-        return;
-      }
-      for await (const evento of leerNdjson<LiveEvent>(respuesta.body)) agregar(evento);
-    } catch (e) {
-      if (control.signal.aborted) agregar({ t: Date.now(), type: "error", message: "Detenido por el usuario" });
-      else {
-        agregar({ t: Date.now(), type: "error", message: "Se perdió la conexión con el servidor" });
-        console.error("/live:", e);
-      }
-    } finally {
-      setEnCurso(false);
-      abortar.current = null;
-      void cargarHistorial();
-    }
+    await Promise.all([principal.enviar(pregunta), ...(comparar ? [comparada.enviar(pregunta)] : [])]);
+    void cargarHistorial();
   }
 
-  const opciones = [
+  const opcionesBase = [
     { valor: MEJOR, etiqueta: mejor ? `Mejor · gen ${mejor.generation} (${pct(mejor.heldout_mean)})` : "Mejor generación" },
     ...filas.map(f => ({ valor: String(f.generation), etiqueta: `Gen ${f.generation} · ${pct(f.heldout_mean)} held-out` })),
   ];
   // Una conversación vieja puede ser de una generación que ya no aparece en la rama actual
-  if (!opciones.some(o => o.valor === generacion)) opciones.push({ valor: generacion, etiqueta: `Gen ${generacion}` });
+  const opciones = (valor: string) => opcionesBase.some(o => o.valor === valor)
+    ? opcionesBase : [...opcionesBase, { valor, etiqueta: `Gen ${valor}` }];
 
-  const state: ViewState<LiveEvent[]> = eventos === null ? { status: "empty" } : { status: "ready", data: eventos };
-  return <LiveView state={state} chat={chat}
-    composer={{ texto, cambiarTexto: setTexto, enviar, detener: () => abortar.current?.abort(), enCurso }}
-    historial={{ conversaciones, actual, seleccionar: id => void seleccionar(id), nueva: () => nueva(), borrar: id => void borrar(id) }}
-    generacion={{ opciones, valor: generacion, cambiar: cambiarGeneracion }} />;
+  // Una conversación habla siempre con la misma generación: cambiarla empieza de cero (en comparar, las dos)
+  function selector(conversacion: typeof principal): SelectorGeneracion {
+    return {
+      opciones: opciones(conversacion.generacion),
+      valor: conversacion.generacion,
+      cambiar: valor => {
+        if (comparar) {
+          principal.nueva();
+          comparada.nueva();
+        } else if (conversacion.chat.length > 0) {
+          conversacion.nueva();
+        }
+        conversacion.setGeneracion(valor);
+      },
+    };
+  }
+
+  const panel = (clave: string, conversacion: typeof principal): PanelChat => ({
+    clave, chat: conversacion.chat, eventos: conversacion.eventos ?? [], enCurso: conversacion.enCurso,
+    generacion: selector(conversacion),
+  });
+  // En comparar, a la izquierda el agente base y a la derecha el que eligió (la mejor por defecto)
+  const paneles = comparar ? [panel("base", comparada), panel("principal", principal)] : [panel("principal", principal)];
+  const evidencia: ViewState<LiveEvent[]> = principal.eventos === null
+    ? { status: "empty" } : { status: "ready", data: principal.eventos };
+
+  return <LiveView paneles={paneles} evidencia={evidencia}
+    composer={{ texto, cambiarTexto: setTexto, enviar, detener: () => { principal.detener(); comparada.detener(); }, enCurso }}
+    historial={{ conversaciones, actual: principal.actual, seleccionar: id => void seleccionar(id), nueva, borrar: id => void borrar(id) }}
+    comparar={{ activo: comparar, alternar: alternarComparar }} />;
 }

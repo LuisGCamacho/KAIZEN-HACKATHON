@@ -329,3 +329,27 @@ button,input{font:inherit}
 .fitness-chart .chart-value{fill:var(--ink);font-family:var(--f-mono);font-size:12px;font-variant-numeric:tabular-nums}
 .fitness-chart .chart-value-train{fill:var(--ink-3);font-size:11px}
 .chart-note{margin:8px 0 0;color:var(--ink-3);font-size:12px}
+
+/* Clave de administrador en la confirmación y medidor de tokens del sidebar */
+.run-confirm-clave{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-3)}
+.run-confirm-clave input{min-height:36px;padding:0 10px;border:1px solid var(--line-strong);border-radius:var(--r-control);background:var(--bg);color:var(--ink);font:inherit}
+.budget-tope{color:var(--ink-3);font-size:14px}
+.budget-barra{height:6px;margin:8px 0 4px;border-radius:var(--r-pill);background:var(--soft);overflow:hidden}
+.budget-barra span{display:block;height:100%;background:var(--ink-2)}
+.budget-barra.budget-casi span{background:var(--ink)}
+.budget-aviso{margin:2px 0 6px;color:var(--ink);font-size:11px;font-weight:500}
+.run-progress-lado{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.overview-actions .run-confirm{flex-basis:100%;max-width:420px;margin-left:auto}
+
+/* En vivo · modo comparar: dos conversaciones lado a lado con la misma pregunta */
+.chat-controles{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.btn-comparar{min-height:36px;padding:0 12px;font-size:13px}
+.btn-comparar.activo{border-color:var(--ink);background:var(--soft)}
+.chat-nota-comparar{margin:-4px 0 0;color:var(--ink-3);font-size:12px}
+.live-layout.comparando.con-historial{grid-template-columns:240px minmax(0,1fr)}
+.chat-comparacion{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.chat-panel{display:flex;flex-direction:column;gap:8px;min-width:0}
+.chat-comparacion .chat-panel{padding:10px;border:1px solid var(--line);border-radius:var(--r-card)}
+.chat-comparacion .chat-msg{max-width:100%}
+@media(max-width:1024px){.live-layout.comparando.con-historial{grid-template-columns:1fr}}
+@media(max-width:720px){.chat-comparacion{grid-template-columns:1fr}}

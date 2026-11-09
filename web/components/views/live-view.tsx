@@ -118,31 +118,61 @@ function Conversacion({ chat, eventos, composer }: { chat: MensajeChat[]; evento
   </ol>;
 }
 
-export function LiveView({ state, composer, chat = [], historial, generacion }: {
-  state: ViewState<LiveEvent[]>;
+/** Una conversación visible: en modo comparar hay dos, cada una con su generación. */
+export type PanelChat = {
+  clave: string;
+  chat: MensajeChat[];
+  eventos: LiveEvent[];
+  enCurso: boolean;
+  generacion: SelectorGeneracion;
+};
+
+function Selector({ generacion, bloqueado }: { generacion: SelectorGeneracion; bloqueado: boolean }) {
+  return <label className="selector-generacion">
+    <span>Generación</span>
+    <select value={generacion.valor} onChange={evento => generacion.cambiar(evento.target.value)} disabled={bloqueado}
+      title="Cambiar de generación inicia una conversación nueva">
+      {generacion.opciones.map(o => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
+    </select>
+  </label>;
+}
+
+export function LiveView({ paneles, evidencia, composer, historial, comparar }: {
+  paneles: PanelChat[];
+  evidencia: ViewState<LiveEvent[]>;
   composer?: LiveComposer;
-  chat?: MensajeChat[];
   historial?: Historial;
-  generacion?: SelectorGeneracion;
+  comparar?: { activo: boolean; alternar: () => void };
 }) {
   const ocupado = Boolean(composer?.enCurso);
-  const eventos = state.status === "ready" ? state.data : [];
+  const comparando = paneles.length > 1;
   return <AppShell active="/live" section="Observación" title="En vivo"
     description="Conversa con el agente como lo haría un cliente y observa qué herramientas usa para responder.">
-    <div className={`live-layout ${historial ? "con-historial" : ""}`}>
+    <div className={`live-layout ${historial ? "con-historial" : ""} ${comparando ? "comparando" : ""}`}>
       {historial && <ListaHistorial historial={historial} bloqueado={ocupado} />}
 
       <section className="card live-chat" aria-label="Conversación con el agente">
-        <SectionHeading eyebrow="Atención al cliente" title="Conversación">
-          {generacion && <label className="selector-generacion">
-            <span>Generación</span>
-            <select value={generacion.valor} onChange={evento => generacion.cambiar(evento.target.value)} disabled={ocupado}
-              title="Cambiar de generación inicia una conversación nueva">
-              {generacion.opciones.map(o => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
-            </select>
-          </label>}
+        <SectionHeading eyebrow="Atención al cliente" title={comparando ? "Comparación" : "Conversación"}>
+          <div className="chat-controles">
+            {comparar && <button type="button" className={`btn btn-comparar ${comparar.activo ? "activo" : ""}`}
+              aria-pressed={comparar.activo} onClick={comparar.alternar} disabled={ocupado}>
+              {comparar.activo ? "Dejar de comparar" : "Comparar generaciones"}
+            </button>}
+            {!comparando && paneles[0] && <Selector generacion={paneles[0].generacion} bloqueado={ocupado} />}
+          </div>
         </SectionHeading>
-        <div className="chat-scroll"><Conversacion chat={chat} eventos={eventos} composer={composer} /></div>
+        {comparando && <p className="chat-nota-comparar">La misma pregunta va a las dos generaciones a la vez: así se ve qué aprendió el agente.</p>}
+        <div className={comparando ? "chat-comparacion" : ""}>
+          {paneles.map((panel, indice) => <div key={panel.clave} className="chat-panel">
+            {comparando && <Selector generacion={panel.generacion} bloqueado={ocupado} />}
+            <div className="chat-scroll">
+              {comparando && indice > 0 && panel.chat.length === 0
+                ? <p className="chat-vacio">Aquí responderá la segunda generación a la misma pregunta.</p>
+                : <Conversacion chat={panel.chat} eventos={panel.eventos}
+                  composer={composer && { ...composer, enCurso: panel.enCurso }} />}
+            </div>
+          </div>)}
+        </div>
         <form className="composer-row" onSubmit={evento => { evento.preventDefault(); composer?.enviar(); }}>
           <label className="sr-only" htmlFor="live-prompt">Mensaje para el agente</label>
           <textarea id="live-prompt" rows={2} disabled={!composer || composer.enCurso}
@@ -156,11 +186,11 @@ export function LiveView({ state, composer, chat = [], historial, generacion }: 
         <p className="page-footnote">Enter envía · Mayús + Enter agrega una línea. Cada respuesta tarda entre 10 y 20 segundos.</p>
       </section>
 
-      <section className="card live-timeline" aria-label="Actividad del agente">
+      {!comparando && <section className="card live-timeline" aria-label="Actividad del agente">
         <SectionHeading eyebrow="Evidencia" title="Lo que hizo el agente" />
-        {state.status === "empty"
+        {evidencia.status === "empty"
           ? <PanelEmpty>Cada herramienta que el agente consulte y su resultado aparecerán aquí, en el orden en que ocurren.</PanelEmpty>
-          : <DataGate state={state} source="POST /api/live" title="Aún no hay actividad"
+          : <DataGate state={evidencia} source="POST /api/live" title="Aún no hay actividad"
             description="Cada herramienta que el agente consulta y su resultado aparecerán aquí, en el orden en que ocurren.">
             {events => events.length === 0 ? <PanelEmpty>La sesión no emitió eventos.</PanelEmpty> :
               <ol className="event-list">{events.map((event, index) => <li key={`${event.t}-${index}`}>
@@ -171,7 +201,7 @@ export function LiveView({ state, composer, chat = [], historial, generacion }: 
                 {event.type === "tool_result" && <span className="event-result">{event.ok ? "Completada" : "Falló"} · {event.ms} ms</span>}
               </li>)}</ol>}
           </DataGate>}
-      </section>
+      </section>}
     </div>
   </AppShell>;
 }

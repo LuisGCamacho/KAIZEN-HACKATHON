@@ -14,7 +14,7 @@ from types import ModuleType
 import pytest
 
 import run
-from core import almacen, archivos, artifacts, llm, paths, versions
+from core import almacen, archivos, artifacts, llm, paths, progress, versions
 from core import reset as reset_mod
 from core.contracts import BASE_TOOLS, AgentSpec, Artifact, GenerationReport, Trace, Verdict
 from evaluation import export
@@ -270,3 +270,18 @@ def test_export_suelto_no_deja_la_corrida_como_activa(datos):
     """run.py export no toma el lock ni cierra la corrida: no debe marcar corriendo=True en progress.json."""
     assert run.main(["export"]) == run.SALIDA_OK
     assert leer_web("progress.json")["corriendo"] is False
+
+
+def test_cancelar_cierra_la_corrida_y_libera_el_lock(datos, monkeypatch):
+    """El manejador de SIGTERM deja la corrida como cancelada (visible en la web) y suelta el lock."""
+    salidas = []
+    monkeypatch.setattr(run.os, "_exit", lambda codigo: salidas.append(codigo))
+    run.tomar_lock()
+    progress.iniciar(1, "main", 1, total=50)
+    run.al_cancelar(15, None)
+    estado = leer_web("progress.json")
+    assert (estado["corriendo"], estado["fase"], estado["error"]) == (False, "cancelada", run.MOTIVO_CANCELACION)
+    assert not paths.LOCK.exists() and salidas == [run.SALIDA_CANCELADA]
+    otra = archivos.intentar_candado(paths.CANDADO_CORRIDA)  # el candado del sistema quedó libre
+    assert otra is not None
+    archivos.soltar_candado(otra)

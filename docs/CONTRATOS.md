@@ -175,6 +175,7 @@ Códigos de salida de `run.py`:
 | 1 | error |
 | 3 | ya hay una corrida en curso (existe `.lock`) |
 | 4 | se agotó el presupuesto |
+| 5 | cancelada por el usuario (SIGTERM desde `POST /api/run {"command": "cancel"}`) |
 
 `POST /api/run` recibe `{"command": "next" | "gen0" | "control" | "reset", "branch"?: "main" | "smoke"}` y responde:
 

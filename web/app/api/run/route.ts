@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 
+import { exigirAdmin } from "@/lib/server/admin";
 import { errorInterno, leerJsonLimitado } from "@/lib/server/http";
 import { LOCK, runPython } from "@/lib/server/python";
 
@@ -22,6 +23,35 @@ const MAX_BODY_BYTES = 1024; // el cuerpo es un comando corto
 
 let ultimoLanzamiento = 0;
 
+/** PID de la corrida activa según el lock, o null si no hay una viva. */
+function pidDeLaCorrida(): number | null {
+  if (!existsSync(LOCK)) return null;
+  const pid = Number(readFileSync(LOCK, "utf-8").trim());
+  if (!Number.isInteger(pid) || pid <= 0) return null;
+  try {
+    process.kill(pid, 0);
+    return pid;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Cancela la corrida: SIGTERM a su grupo de procesos (run.py se lanza desacoplado y es líder de su grupo),
+ * así mueren también los `codex exec` que lanzó. run.py atrapa la señal, marca la corrida como cancelada en
+ * progress.json y libera el lock.
+ */
+function cancelar(): Response {
+  const pid = pidDeLaCorrida();
+  if (pid === null) return Response.json({ error: "no hay una corrida en curso" }, { status: 409 });
+  try {
+    process.kill(-pid, "SIGTERM");
+  } catch {
+    process.kill(pid, "SIGTERM"); // lanzada a mano (docker exec): no es líder de grupo
+  }
+  return Response.json({ cancelled: pid }, { status: 202 });
+}
+
 /** El lock cuenta solo si su PID sigue vivo; uno huérfano (reinicio o crash) lo reemplaza run.py. */
 function corridaEnCurso(): boolean {
   if (Date.now() - ultimoLanzamiento < VENTANA_ARRANQUE_MS) return true;
@@ -41,7 +71,10 @@ export async function POST(request: Request) {
   const lectura = await leerJsonLimitado(request, MAX_BODY_BYTES);
   if (!lectura.ok) return lectura.respuesta;
   const body = (lectura.valor ?? {}) as { command?: unknown; branch?: unknown; confirm?: unknown };
+  const sinPermiso = exigirAdmin(request);
+  if (sinPermiso) return sinPermiso;
   const command = typeof body.command === "string" ? body.command : "next";
+  if (command === "cancel") return cancelar();
   if (!Object.hasOwn(COMMANDS, command)) {
     return Response.json({ error: "comando desconocido" }, { status: 400 });
   }

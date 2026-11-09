@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { AppShell } from "../app-shell";
 import { DeltaBars } from "../charts/delta-bars";
 import { FitnessChart } from "../charts/fitness-chart";
@@ -36,7 +37,7 @@ export function EvolutionView({ reports, artifacts, progress, generar }: {
   artifacts: ViewState<Artifact[]>;
   progress: ViewState<Progress>;
   /** Acción del botón «Generar siguiente» (POST /api/run). Sin ella el botón queda deshabilitado. */
-  generar?: { lanzar: () => void; deshabilitado: boolean; aviso: string | null };
+  generar?: { lanzar: () => void; deshabilitado: boolean; aviso: string | null; confirmacion?: ReactNode };
 }) {
   return <AppShell active="/" section="Operaciones automotrices · held-out" title="Evolución"
     description="Sigue el rendimiento de cada generación y revisa la evidencia que explica sus cambios.">
@@ -59,6 +60,7 @@ export function EvolutionView({ reports, artifacts, progress, generar }: {
               {generar?.aviso ?? (generar ? "Destila los fallos de train y evalúa la nueva generación." : "Las acciones se habilitarán al conectar la API.")}
             </span>
           </div>
+          {generar?.confirmacion}
           <div className="grid g4">
             <MetricCard label="Éxito held-out" value={pct(best?.heldout_mean)} note={best ? `Mejor: generación ${best.generation}` : "Sin generaciones"} />
             <MetricCard label="Pasos por tarea" value={num(best?.avg_steps)} note="En la mejor generación" />

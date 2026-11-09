@@ -5,7 +5,10 @@
  * Cada vista recibe un ViewState: cargando, vacío (el backend aún no exportó), error o datos.
  */
 import { listaVacia, useJson } from "../lib/use-json";
-import { useRun } from "../lib/use-run";
+import { useState } from "react";
+
+import { claveGuardada, useRun } from "../lib/use-run";
+import { ConfirmarAccion } from "./confirmar-accion";
 import { AutopsyView } from "./views/autopsy-view";
 import { EvolutionView } from "./views/evolution-view";
 import { LineageView } from "./views/lineage-view";
@@ -19,21 +22,26 @@ export function EvolucionConectada() {
   const reports = useJson("reports.json", { cadaMs: POLLING_MS, esVacio: r => r.generations.length === 0 });
   const artifacts = useJson("artifacts.json", { cadaMs: POLLING_MS, esVacio: listaVacia });
   const progress = useJson("progress.json", { cadaMs: POLLING_PROGRESO_MS });
-  const { lanzar, enviando, aviso } = useRun();
+  const { lanzar, enviando, aviso, pideClave } = useRun();
+  const [confirmando, setConfirmando] = useState(false);
+  const [pedirClave, setPedirClave] = useState(false);
   const corriendo = progress.status === "ready" && progress.data.corriendo;
   // Igual que el sidebar: sin gen 0 en main no hay nada que destilar, así que primero se evalúa la línea base
   const generacionesMain = reports.status === "ready"
     ? reports.data.generations.filter(g => g.branch === "main").map(g => g.generation) : [];
   const ultima = generacionesMain.length ? Math.max(...generacionesMain) : null;
   // Misma confirmación que el botón del sidebar: la acción tarda minutos y gasta créditos
-  const confirmarYLanzar = () => {
-    const explicacion = ultima === null
-      ? "Se evaluará la generación 0 (el agente escrito a mano)."
-      : `Se destilará la generación ${ultima + 1} a partir de los fallos de la ${ultima} y se evaluará en las mismas tareas. Tarda unos 10 minutos y gasta créditos de la cuenta.`;
-    if (window.confirm(`${explicacion}\n\n¿Lanzar la corrida?`)) void lanzar(ultima === null ? "gen0" : "next");
-  };
+  const explicacion = ultima === null
+    ? "Se evaluará la generación 0 (el agente escrito a mano)."
+    : `Se destilará la generación ${ultima + 1} a partir de los fallos de la ${ultima} y se evaluará en las mismas tareas. Tarda unos 10 minutos y gasta créditos de la cuenta.`;
+  const confirmacion = confirmando && !corriendo
+    ? <ConfirmarAccion explicacion={explicacion} accion="Lanzar" pedirClave={pedirClave} enviando={enviando}
+      cancelar={() => setConfirmando(false)}
+      confirmar={clave => { setConfirmando(false); void lanzar(ultima === null ? "gen0" : "next", clave); }} />
+    : null;
   return <EvolutionView reports={reports} artifacts={artifacts} progress={progress}
-    generar={{ lanzar: confirmarYLanzar, deshabilitado: enviando || corriendo, aviso }} />;
+    generar={{ lanzar: () => { setPedirClave(pideClave || !claveGuardada()); setConfirmando(true); },
+               deshabilitado: enviando || corriendo, aviso, confirmacion }} />;
 }
 
 export function AutopsiaConectada() {

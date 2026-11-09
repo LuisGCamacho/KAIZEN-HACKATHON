@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -19,7 +20,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from core import almacen, archivos, llm, paths, progress  # noqa: E402
 from core.contracts import BASE_TOOLS, HELDOUT_PER_FAMILY, AgentSpec  # noqa: E402
 
-SALIDA_OK, SALIDA_ERROR, SALIDA_OCUPADO, SALIDA_PRESUPUESTO = 0, 1, 3, 4
+SALIDA_OK, SALIDA_ERROR, SALIDA_OCUPADO, SALIDA_PRESUPUESTO, SALIDA_CANCELADA = 0, 1, 3, 4, 5
+MOTIVO_CANCELACION = "Cancelada por el usuario"
 RAMA_SMOKE = "smoke"
 SMOKE_TAREAS_POR_FAMILIA = ("00", "10")  # 2 por familia: una held-out (00) y una de train (10)
 PROMPT_GEN0 = "prompts/gen_0.md"
@@ -118,6 +120,15 @@ def tomar_lock() -> None:
         progress.linea("lock huérfano de una corrida anterior: se reemplaza")
     _candado_corrida = candado
     escribir_texto_atomico(paths.LOCK, str(os.getpid()))
+
+
+def al_cancelar(_senal: int, _marco: object) -> None:
+    """SIGTERM que manda /api/run al cancelar. Se cierra aquí y se sale con os._exit: los hilos de la
+    evaluación no se detienen solos y la salida normal esperaría a que terminen todas sus llamadas al modelo.
+    Si ya se destiló la generación pero no se evaluó, la siguiente corrida la evalúa (ver siguiente())."""
+    progress.cancelar(MOTIVO_CANCELACION)
+    soltar_lock()
+    os._exit(SALIDA_CANCELADA)
 
 
 def soltar_lock() -> None:
@@ -291,6 +302,7 @@ def main(argv: list[str] | None = None) -> int:
     except CorridaOcupada as e:
         print(e, file=sys.stderr)
         return SALIDA_OCUPADO
+    signal.signal(signal.SIGTERM, al_cancelar)
     try:
         progress.linea(f"run.py {' '.join(argv if argv is not None else sys.argv[1:])}")
         ejecutar(args)
