@@ -105,3 +105,18 @@ def test_tope_de_tokens(codex_falso, monkeypatch):
     llm.chat(PREGUNTA)  # 30 100: lo cruza, pero ya se había autorizado
     with pytest.raises(llm.BudgetExceeded, match="tokens de Codex"):
         llm.chat(PREGUNTA)
+
+
+def test_json_con_saltos_de_linea_sin_escapar_se_normaliza():
+    """Caso real: el meta-destilador recibió un prompt con un salto de línea crudo dentro del string."""
+    crudo = '{"prompt": "Línea 1\nLínea 2", "diagnosis": "ok"}'.replace("\\n", "\n")
+    assert "\n" in crudo  # salto de línea real, no escapado
+    normalizado = proveedor_codex.normalizar_json(crudo)
+    assert json.loads(normalizado) == {"prompt": "Línea 1\nLínea 2", "diagnosis": "ok"}
+
+
+def test_json_irrecuperable_se_reintenta():
+    with pytest.raises(proveedor_codex.FalloTransitorio):
+        proveedor_codex.normalizar_json("esto no es json")
+    with pytest.raises(proveedor_codex.FalloTransitorio):
+        proveedor_codex.normalizar_json("[1, 2]")

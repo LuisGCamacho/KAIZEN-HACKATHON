@@ -109,10 +109,23 @@ def construir_esquema(herramientas: list[dict] | None, modo_json: bool) -> dict:
     return {"type": "object", "additionalProperties": False, "required": list(propiedades), "properties": propiedades}
 
 
+def normalizar_json(texto: str) -> str:
+    """Codex a veces mete saltos de línea o tabuladores sin escapar dentro de los strings del JSON (p. ej. en un
+    prompt reescrito). json.loads estricto los rechaza y tumbaba la corrida: se aceptan en modo tolerante y se
+    devuelve JSON válido. Si ni así es un objeto JSON, se reintenta la llamada."""
+    try:
+        datos = json.loads(texto, strict=False)
+    except json.JSONDecodeError as e:
+        raise FalloTransitorio(f"Codex devolvió un JSON inválido: {e}") from e
+    if not isinstance(datos, dict):
+        raise FalloTransitorio("Codex devolvió JSON, pero no un objeto")
+    return json.dumps(datos, ensure_ascii=False)
+
+
 def a_mensaje(salida: dict, modo_json: bool) -> SimpleNamespace:
     """Convierte la salida del esquema en un mensaje con la forma del SDK de OpenAI."""
     if modo_json:
-        return SimpleNamespace(content=salida.get("json", "{}"), tool_calls=None)
+        return SimpleNamespace(content=normalizar_json(salida.get("json", "{}")), tool_calls=None)
     llamadas = [SimpleNamespace(id=f"call_{uuid.uuid4().hex[:12]}", type="function",
                                 function=SimpleNamespace(name=c["name"], arguments=c["arguments"]))
                 for c in salida.get("tool_calls") or []]
@@ -179,6 +192,6 @@ def chat(mensajes: list[dict], modelo: str, herramientas: list[dict] | None, mod
         if proceso.returncode != 0 or not salida.exists():
             raise FalloTransitorio(f"codex exec terminó con código {proceso.returncode}: {(error or stderr).strip()[:300]}")
         try:
-            return a_mensaje(json.loads(salida.read_text(encoding="utf-8")), modo_json), tokens
+            return a_mensaje(json.loads(salida.read_text(encoding="utf-8"), strict=False), modo_json), tokens
         except json.JSONDecodeError as e:
             raise FalloTransitorio(f"Codex no devolvió el JSON del esquema: {e}") from e
