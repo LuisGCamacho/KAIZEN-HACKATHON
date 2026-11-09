@@ -162,16 +162,18 @@ def test_next_reanuda_una_generacion_sin_evaluar(datos, monkeypatch):
 
 # ---------- lock y códigos de salida ----------
 
-def test_lock_de_proceso_vivo_devuelve_3(datos, monkeypatch):
+def test_corrida_en_curso_devuelve_3(datos, monkeypatch):
     instalar_dobles(monkeypatch)
-    paths.LOCK.write_text(str(os.getppid()), encoding="utf-8")  # el proceso padre sigue vivo
-    assert run.main(["gen0"]) == run.SALIDA_OCUPADO
-    assert paths.LOCK.exists()  # no borra el lock ajeno
+    otra_corrida = archivos.intentar_candado(paths.CANDADO_CORRIDA)  # simula otro run.py vivo
+    try:
+        assert run.main(["gen0"]) == run.SALIDA_OCUPADO
+    finally:
+        archivos.soltar_candado(otra_corrida)
 
 
 def test_lock_huerfano_se_reemplaza(datos, monkeypatch):
+    """Un .lock de una corrida que murió no bloquea: el candado del sistema ya se liberó."""
     instalar_dobles(monkeypatch)
-    monkeypatch.setattr(run, "proceso_vivo", lambda _pid: False)
     paths.LOCK.write_text("999999", encoding="utf-8")
     assert run.main(["gen0", "--seeds", "1"]) == run.SALIDA_OK
     assert not paths.LOCK.exists()
@@ -230,14 +232,11 @@ def test_reset_deja_solo_gen0(datos, monkeypatch):
     assert list(paths.PLAYBOOKS.iterdir()) == []
 
 
-def test_lock_es_atomico(datos, monkeypatch):
-    """Si otro proceso crea el lock entre la revisión y la escritura, este no lo pisa."""
-    original = run.os.open
-
-    def otro_proceso_gana(ruta, banderas, *args):
-        paths.LOCK.write_text("1", encoding="utf-8")
-        return original(ruta, banderas, *args)
-    monkeypatch.setattr(run.os, "open", otro_proceso_gana)
-    with pytest.raises(run.CorridaOcupada):
-        run.tomar_lock()
-    assert paths.LOCK.read_text(encoding="utf-8") == "1"
+def test_candado_de_corrida_es_exclusivo(datos):
+    primero = archivos.intentar_candado(paths.CANDADO_CORRIDA)
+    assert primero is not None
+    assert archivos.intentar_candado(paths.CANDADO_CORRIDA) is None
+    archivos.soltar_candado(primero)
+    segundo = archivos.intentar_candado(paths.CANDADO_CORRIDA)
+    assert segundo is not None
+    archivos.soltar_candado(segundo)
