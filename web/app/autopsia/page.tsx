@@ -1,5 +1,5 @@
-import { AutopsyView } from "../../components/views/autopsy-view";
+import { AutopsiaConectada } from "../../components/connected-views";
 
 export default function AutopsiaPage() {
-  return <AutopsyView state={{ status: "empty" }} />;
+  return <AutopsiaConectada />;
 }
