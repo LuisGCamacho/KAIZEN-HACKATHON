@@ -36,10 +36,21 @@ def test_tabla_con_encabezados_y_valores_del_reporte():
 
 def test_resumen_con_formulas_sobre_la_tabla():
     ws = _hoja()
-    formulas = [ws.cell(row=r, column=2).value for r in range(9, 14)]
+    formulas = [ws.cell(row=r, column=excel.COL_VALOR).value for r in range(9, 14)]
     assert formulas[0] == "=INDEX($D$5:$D$6,1)"
     assert formulas[1] == "=MAX($D$5:$D$6)"
-    assert formulas[3] == "=B10-B9"  # mejor menos la primera
+    assert formulas[3] == "=D10-D9"  # mejor menos la primera
+    assert ws.column_dimensions["A"].width == 10  # el resumen no ensancha la columna Rama
+
+
+def test_etiquetas_de_las_graficas_solo_muestran_el_valor():
+    for grafica in _hoja()._charts:
+        for serie in grafica.series:
+            if serie.dLbls is None:
+                continue
+            etiquetas = serie.dLbls
+            assert etiquetas.showVal is True
+            assert not (etiquetas.showSerName or etiquetas.showCatName or etiquetas.showLegendKey)
 
 
 def test_dos_graficas():

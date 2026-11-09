@@ -3,7 +3,6 @@ import { AppShell } from "../app-shell";
 import { DeltaBars } from "../charts/delta-bars";
 import { FitnessChart } from "../charts/fitness-chart";
 import { DataGate, MetricCard, PanelEmpty, SectionHeading } from "../ui/data-display";
-import { descargar, generacionesACsv } from "../../lib/csv";
 import { num, pct, signedPct } from "../../lib/format";
 import type { Artifact, Generation, Progress, ReportsFile } from "../../lib/types";
 import type { ViewState } from "../../lib/view-state";
@@ -52,8 +51,6 @@ export function EvolutionView({ reports, artifacts, progress, generar }: {
         const progressData = progress.status === "ready" ? progress.data : null;
         return <>
           <div className="overview-actions">
-            <button className="btn" type="button" disabled={rows.length === 0}
-              onClick={() => descargar(`kaizen-${branch}-generaciones.csv`, generacionesACsv(rows))}>Exportar CSV</button>
             {/* El Excel lo arma el backend (con gráficas): un enlace basta para que el navegador lo descargue */}
             {rows.length > 0 && branch
               ? <a className="btn" href={`/api/excel?branch=${encodeURIComponent(branch)}`} download>Exportar Excel</a>
