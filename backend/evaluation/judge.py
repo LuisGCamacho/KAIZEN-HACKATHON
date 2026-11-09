@@ -9,6 +9,7 @@ El juez nunca recibe la respuesta esperada: solo la petición, los pasos con sus
 from __future__ import annotations
 
 import json
+import os
 
 import openai
 
@@ -57,11 +58,19 @@ def acotar_nota(valor: object) -> float | None:
     return max(NOTA_MINIMA, min(NOTA_MAXIMA, nota))
 
 
+def juez_activo() -> bool:
+    """KAIZEN_JUDGE=off apaga el juez para ahorrar llamadas (con Codex es ~1/3 del gasto). No cambia la métrica
+    oficial, que es la del verificador; solo se pierde la correlación del juez y la calibración del meta-juez."""
+    return os.getenv("KAIZEN_JUDGE", "on").strip().lower() != "off"
+
+
 def juzgar(peticion: str, pasos: list[Step], respuesta: str, version_rubrica: int) -> tuple[float | None, float | None, float]:
     """Devuelve (p_pasa, explicacion, costo_usd) según la rúbrica de esa versión.
 
     Si el modelo falla o no devuelve JSON válido, las notas quedan en None (nunca se inventan) y la evaluación
     sigue. BudgetExceeded sí se propaga: sin presupuesto hay que detener la corrida completa."""
+    if not juez_activo():
+        return None, None, 0.0  # sin nota: la métrica es del verificador; el meta-juez ignora los None
     rubrica = leer_rubrica(version_rubrica)
     try:
         notas, costo = llm.chat_json(rubrica, describir_episodio(peticion, pasos, respuesta),

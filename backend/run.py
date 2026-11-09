@@ -17,12 +17,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from core import almacen, archivos, llm, paths, progress  # noqa: E402
-from core.contracts import BASE_TOOLS, AgentSpec  # noqa: E402
+from core.contracts import BASE_TOOLS, HELDOUT_PER_FAMILY, AgentSpec  # noqa: E402
 
 SALIDA_OK, SALIDA_ERROR, SALIDA_OCUPADO, SALIDA_PRESUPUESTO = 0, 1, 3, 4
 RAMA_SMOKE = "smoke"
 SMOKE_TAREAS_POR_FAMILIA = ("00", "10")  # 2 por familia: una held-out (00) y una de train (10)
 PROMPT_GEN0 = "prompts/gen_0.md"
+# KAIZEN_TASKS=reducido: subconjunto fijo y balanceado para gastar menos (p. ej. con Codex). Siempre las mismas
+# tareas en todas las generaciones, para que la curva held-out sea comparable entre ellas.
+TAREAS_REDUCIDAS_POR_FAMILIA = 5  # 5 held-out + 5 train por familia = 50 de 120
 
 
 class CorridaOcupada(RuntimeError):
@@ -37,6 +40,20 @@ class CorridaOcupada(RuntimeError):
 def _tareas() -> list[dict]:
     from env.tareas import TAREAS
     return TAREAS
+
+
+def tareas_de_corrida() -> list[dict] | None:
+    """Tareas de gen0/next/loop: None = las 120; con KAIZEN_TASKS=reducido, las primeras 5 held-out y las
+    primeras 5 de train de cada familia (el destilador sigue viendo solo train)."""
+    if os.getenv("KAIZEN_TASKS", "todas").strip().lower() != "reducido":
+        return None
+    elegidas = []
+    for tarea in _tareas():
+        indice = int(tarea["id"].rsplit("_", 1)[1])  # coti_00..coti_23; las primeras 8 son held-out
+        posicion = indice if tarea["split"] == "heldout" else indice - HELDOUT_PER_FAMILY
+        if posicion < TAREAS_REDUCIDAS_POR_FAMILIA:
+            elegidas.append(tarea)
+    return elegidas
 
 
 def _evaluar_semilla(spec: AgentSpec, semilla: int, tareas: list[dict] | None):
@@ -184,10 +201,11 @@ def smoke(semillas: list[int]) -> None:
 
 
 def loop(hasta: int, semillas: list[int], commit: bool) -> None:
+    tareas = tareas_de_corrida()
     if not almacen.cargar_reportes(almacen.RAMA_PRINCIPAL):
-        evaluar(spec_gen0(almacen.RAMA_PRINCIPAL), semillas)
+        evaluar(spec_gen0(almacen.RAMA_PRINCIPAL), semillas, tareas)
     while almacen.generaciones(almacen.RAMA_PRINCIPAL)[-1] < hasta:
-        siguiente(almacen.RAMA_PRINCIPAL, semillas, commit=commit)
+        siguiente(almacen.RAMA_PRINCIPAL, semillas, tareas, commit=commit)
 
 
 def reset(simulado: bool) -> None:
@@ -242,11 +260,12 @@ def ejecutar(args: argparse.Namespace) -> None:
     if args.cmd == "smoke":
         smoke(semillas)
     elif args.cmd == "gen0":
-        evaluar(spec_gen0(args.branch), semillas)
+        evaluar(spec_gen0(args.branch), semillas, tareas_de_corrida())
     elif args.cmd == "next":
         if args.branch == almacen.CONTROL and not (paths.RUNS / almacen.CONTROL / "fork.json").exists():
             almacen.fijar_fork(args.fork_from if args.fork_from is not None else almacen.FORK_POR_DEFECTO)
-        siguiente(args.branch, semillas, meta_destilador=not args.no_meta_distiller, commit=args.commit)
+        siguiente(args.branch, semillas, tareas_de_corrida(), meta_destilador=not args.no_meta_distiller,
+                  commit=args.commit)
     elif args.cmd == "loop":
         loop(args.until, semillas, args.commit)
     elif args.cmd == "reset":

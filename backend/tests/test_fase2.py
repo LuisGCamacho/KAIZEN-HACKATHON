@@ -240,3 +240,27 @@ def test_candado_de_corrida_es_exclusivo(datos):
     segundo = archivos.intentar_candado(paths.CANDADO_CORRIDA)
     assert segundo is not None
     archivos.soltar_candado(segundo)
+
+
+def test_modo_reducido_balanceado_y_fijo(monkeypatch):
+    """KAIZEN_TASKS=reducido: 5 held-out + 5 train por familia, siempre las mismas."""
+    monkeypatch.setitem(sys.modules, "env.tareas", ModuleType("env.tareas"))
+    sys.modules["env.tareas"].TAREAS = TAREAS
+    monkeypatch.delenv("KAIZEN_TASKS", raising=False)
+    assert run.tareas_de_corrida() is None  # por defecto: las 120
+    monkeypatch.setenv("KAIZEN_TASKS", "reducido")
+    tareas = run.tareas_de_corrida()
+    assert len(tareas) == 50
+    for familia in {t["family"] for t in TAREAS}:
+        de_familia = [t for t in tareas if t["family"] == familia]
+        assert sum(t["split"] == "heldout" for t in de_familia) == 5
+        assert sum(t["split"] == "train" for t in de_familia) == 5
+    assert tareas == run.tareas_de_corrida()
+
+
+def test_loop_reducido_evalua_50_tareas_por_generacion(datos, monkeypatch):
+    instalar_dobles(monkeypatch)
+    monkeypatch.setenv("KAIZEN_TASKS", "reducido")
+    assert run.main(["loop", "--until", "1", "--seeds", "1"]) == run.SALIDA_OK
+    assert len(almacen.cargar_trazas("main", 0)) == 50
+    assert len(almacen.cargar_trazas("main", 1)) == 50

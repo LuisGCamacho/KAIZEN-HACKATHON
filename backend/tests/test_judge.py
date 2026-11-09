@@ -79,3 +79,11 @@ def test_rubrica_inexistente_es_un_error():
 def test_rubrica_v0_pide_las_dos_notas():
     rubrica = judge.leer_rubrica(0)
     assert '"p_pasa"' in rubrica and '"explicacion"' in rubrica
+
+
+def test_juez_apagado_no_llama_al_modelo(monkeypatch):
+    llamadas = []
+    monkeypatch.setattr(llm, "chat_json", lambda *a, **k: llamadas.append(1) or ({"p_pasa": 1}, 0.1))
+    monkeypatch.setenv("KAIZEN_JUDGE", "off")
+    assert judge.juzgar("¿Hola?", [], "Sí.", 0) == (None, None, 0.0)
+    assert llamadas == []

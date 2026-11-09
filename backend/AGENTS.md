@@ -188,6 +188,8 @@ Si cambias la forma de alguno, actualiza `web/lib/types.ts` y avisa.
 | `KAIZEN_PROVIDER` | `openai` | `codex` usa la CLI de Codex con una cuenta de ChatGPT (`core/proveedor_codex.py`): sin temperatura ni semilla, costo 0 USD y tope por tokens. Codex es un agente con terminal: cualquier intento de usar una herramienta propia mata el proceso y descarta la respuesta |
 | `CODEX_MAX_TOKENS` | `0` (sin tope) | Corte de tokens de Codex acumulados en `spend.json` (`codex_tokens`) |
 | `CODEX_EFFORT` / `CODEX_EFFORT_SMART` | `low` / `medium` | Esfuerzo de razonamiento del agente y juez / del destilador y meta-loop |
+| `KAIZEN_TASKS` | `todas` | `reducido`: gen0/next/loop evalúan 50 tareas fijas (5 held-out + 5 train por familia). La curva sigue siendo comparable entre generaciones |
+| `KAIZEN_JUDGE` | `on` | `off`: el juez no se llama (notas en `None`); se pierde la correlación del juez y el meta-juez no recalibra. La métrica oficial no cambia |
 | `KAIZEN_PYTHON` | `backend/.venv/…/python` | **Lo lee la web**, no el backend (`web/.env.local` o el entorno del servicio): intérprete con el que `/api/run` y `/api/live` lanzan Python |
 
 ## Convenciones
