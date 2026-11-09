@@ -6,7 +6,7 @@ import { leerNdjson } from "../lib/ndjson";
 import type { LiveEvent } from "../lib/types";
 import { useJson } from "../lib/use-json";
 import type { ViewState } from "../lib/view-state";
-import { LiveView } from "./views/live-view";
+import { LiveView, type MensajeChat } from "./views/live-view";
 
 type Mensaje = { role: "user" | "assistant"; content: string };
 
@@ -23,6 +23,7 @@ export function LiveConectada() {
   const [texto, setTexto] = useState("");
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [eventos, setEventos] = useState<LiveEvent[] | null>(null);
+  const [chat, setChat] = useState<MensajeChat[]>([]); // lo que ve el público: turnos de cliente y agente
   const [enCurso, setEnCurso] = useState(false);
   const abortar = useRef<AbortController | null>(null);
 
@@ -31,12 +32,19 @@ export function LiveConectada() {
     if (!pregunta || enCurso) return;
     const conversacion: Mensaje[] = [...mensajes, { role: "user", content: pregunta }];
     setMensajes(conversacion);
+    setChat(previo => [...previo, { de: "cliente", texto: pregunta }]);
     setTexto("");
     setEventos(previos => previos ?? []);
     setEnCurso(true);
     const control = new AbortController();
     abortar.current = control;
-    const agregar = (evento: LiveEvent) => setEventos(previos => [...(previos ?? []), evento]);
+    let herramientasDelTurno = 0;
+    const agregar = (evento: LiveEvent) => {
+      setEventos(previos => [...(previos ?? []), evento]);
+      if (evento.type === "tool_call") herramientasDelTurno += 1;
+      if (evento.type === "final") setChat(previo => [...previo, { de: "agente", texto: evento.text, herramientas: herramientasDelTurno }]);
+      if (evento.type === "error") setChat(previo => [...previo, { de: "aviso", texto: `No se pudo responder: ${evento.message}` }]);
+    };
     try {
       const respuesta = await fetch("/api/live", {
         method: "POST",
@@ -65,7 +73,7 @@ export function LiveConectada() {
   }
 
   const state: ViewState<LiveEvent[]> = eventos === null ? { status: "empty" } : { status: "ready", data: eventos };
-  return <LiveView state={state} composer={{
+  return <LiveView state={state} chat={chat} composer={{
     texto, cambiarTexto: setTexto, enviar, detener: () => abortar.current?.abort(), enCurso,
     destino: `${rama} · mejor generación`,
   }} />;

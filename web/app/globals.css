@@ -251,3 +251,32 @@ button,input{font:inherit}
 .delta-track::after{position:absolute;top:0;bottom:0;left:50%;width:1px;background:var(--line-strong);content:""}
 .delta-fill{position:absolute;left:50%}
 .delta-fill.negative{right:50%;left:auto}
+
+/* En vivo: la conversación es la protagonista; la actividad del agente queda como evidencia al lado */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+.live-layout{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:16px;align-items:start;margin-top:24px}
+.live-layout .live-timeline{margin-top:0;max-height:640px;overflow-y:auto}
+.live-chat{display:flex;flex-direction:column;gap:12px}
+.chat-caption{color:var(--ink-3);font-family:var(--f-mono);font-size:12px}
+.chat-scroll{min-height:320px;max-height:520px;overflow-y:auto;padding:4px 2px}
+.chat-lista{display:flex;flex-direction:column;gap:12px;margin:0;padding:0;list-style:none}
+.chat-msg{max-width:85%;padding:10px 14px;border-radius:var(--r-card);border:1px solid var(--line)}
+.chat-msg p{margin:2px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5}
+.chat-autor,.chat-meta{display:block;color:var(--ink-3);font-size:11px;letter-spacing:.04em;text-transform:uppercase}
+.chat-meta{margin-top:6px;text-transform:none;letter-spacing:0;font-family:var(--f-mono)}
+.chat-cliente{align-self:flex-end;background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.chat-cliente .chat-autor{color:var(--ink-4)}
+.chat-agente{align-self:flex-start;background:var(--panel)}
+.chat-aviso{align-self:center;max-width:100%;border-style:dashed;background:var(--bg);color:var(--ink-2);font-size:13px}
+.chat-pensando p{color:var(--ink-3);font-style:italic}
+.chat-ancla{height:0;border:0;padding:0}
+.chat-vacio{display:flex;flex-direction:column;gap:12px;color:var(--ink-2);max-width:65ch}
+.chat-vacio p{margin:0}
+.chat-ejemplos{display:flex;flex-wrap:wrap;gap:8px}
+.chip-ejemplo{min-height:40px;padding:8px 12px;border:1px solid var(--line-strong);border-radius:var(--r-control);background:var(--bg);color:var(--ink);font:inherit;font-size:13px;text-align:left;cursor:pointer}
+.chip-ejemplo:hover:not(:disabled){background:var(--soft)}
+.chip-ejemplo:disabled{color:var(--ink-4);cursor:not-allowed}
+.live-chat .composer-row textarea{min-height:56px}
+.live-chat .page-footnote{margin:0}
+@media(max-width:1024px){.live-layout{grid-template-columns:1fr}.live-layout .live-timeline{max-height:none}}
+@media(max-width:480px){.chat-msg{max-width:100%}.live-chat .composer-row{flex-direction:column;align-items:stretch}}
