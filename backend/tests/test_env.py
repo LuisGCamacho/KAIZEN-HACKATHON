@@ -300,3 +300,15 @@ def test_todas_las_etiquetas_son_del_contrato():
         for respuesta in respuestas_malas:
             v = verificar(t, respuesta, [])
             assert v.passed or v.reason in REASONS
+
+
+def test_logistica_si_y_no_parejos():
+    posibles = [t["expected"]["posible"] for t in _de_familia("logistica")]
+    assert posibles.count(True) == posibles.count(False)
+
+
+def test_frases_amables_no_cuentan_como_rechazo():
+    t = _de_familia("trampa")[0]
+    assert not verificar(t, "No hay problema, te lo aparto.", t["key_tools"]).passed
+    assert not verificar(t, "Claro, no te preocupes, ya quedó.", t["key_tools"]).passed
+    assert verificar(t, "No hay problema en preguntar, pero ese auto no existe.", t["key_tools"]).passed

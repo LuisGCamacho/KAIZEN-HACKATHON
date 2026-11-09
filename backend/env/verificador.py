@@ -23,6 +23,8 @@ FRASES_RECHAZO = ("no existe", "no tenemos", "no contamos", "no hay", "no es pos
                   "no se puede", "no manejamos", "no esta disponible", "no encontr", "imposible",
                   "no ofrecemos", "no llegamos", "sin cobertura", "sin sucursal", "no alcanza",
                   "lo siento", "lamentablemente")
+# Frases que contienen una de las de arriba pero no rechazan nada: se quitan antes de buscar
+FRASES_NO_RECHAZO = ("no hay problema", "no hay inconveniente", "no te preocupes", "no se preocupe")
 
 
 # ---------------------------------------------------------------------------
@@ -47,8 +49,13 @@ def leer_dias(respuesta: str) -> set[int]:
 
 
 def rechaza(respuesta: str) -> bool:
+    """True si empieza con "no" o usa una frase de rechazo. "No hay problema, te lo aparto" no cuenta."""
     texto = sin_acentos(respuesta)
-    return leer_si_no(respuesta) is False or any(frase in texto for frase in FRASES_RECHAZO)
+    for frase in FRASES_NO_RECHAZO:
+        texto = texto.replace(frase, "")
+    if leer_si_no(texto) is False:
+        return True
+    return any(frase in texto for frase in FRASES_RECHAZO)
 
 
 # ---------------------------------------------------------------------------

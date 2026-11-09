@@ -15,8 +15,8 @@ from core.contracts import (FAMILY_PREFIX, HELDOUT_PER_FAMILY, INVENTORY_SEED, I
 from env.inventario import ANIO_MAX, CIUDADES, ESTADO_DE_CIUDAD, INVENTARIO, MODELOS
 from env.tools import (ANIO_ELECTRICO_VIEJO, DIAS_AGENDA_LLENA, DOMINGO, HOY, KM_ALTO, MESES_GARANTIA,
                        PLAZO_DEFAULT_MESES, agendar_inspeccion, buscar_inventario,
-                       calcular_financiamiento, consultar_tramite, politica_garantia,
-                       verificar_disponibilidad_entrega)
+                       calcular_financiamiento, consultar_tramite, dias_ruta,
+                       politica_garantia, verificar_disponibilidad_entrega)
 
 # Cómo nombra el cliente cada lugar en su mensaje
 NOMBRE_CIUDAD = {"CDMX": "Ciudad de México", "GDL": "Guadalajara", "MTY": "Monterrey",
@@ -51,7 +51,9 @@ CADA_INSPECCION = 3  # 1 de cada 3 pide además agendar una inspección
 DIAS_INSPECCION_MIN, DIAS_INSPECCION_MAX = 2, 40  # días a partir de HOY
 MAX_DIAS_BUSQUEDA_CITA = 14
 PROB_FECHA_RECHAZADA = 0.5  # la fecha pedida cae en domingo o en día 1 o 15
-AJUSTES_PLAZO = [-1, 0, 1]  # el plazo pedido queda justo alrededor de los días reales de traslado
+# Plazo pedido alrededor de los días reales de traslado, repartido por número de tarea: con -1 la
+# respuesta es "no", así "sí" y "no" quedan parejos al sumar las rutas sin cobertura
+AJUSTES_PLAZO = [-1, 0, 1]
 RANGO_PLAZO_SIN_COBERTURA = (3, 6)
 
 # Trámite: 2 de cada 3 compran placas de otro estado (regla oculta: baja + alta)
@@ -130,9 +132,9 @@ def _ruta(rng: random.Random, j: int) -> tuple[dict, str]:
     """Auto y ciudad destino. Cada CADA_SIN_COBERTURA tareas, una ruta sin cobertura."""
     if j % CADA_SIN_COBERTURA == 0:
         origen, destino = rng.choice(RUTAS_SIN_COBERTURA)
-    else:
+    else:  # solo rutas con cobertura, para que las sin cobertura sean exactamente 1 de cada 4
         origen = rng.choice(CIUDADES)
-        destino = rng.choice([c for c in CIUDADES if c != origen])
+        destino = rng.choice([c for c in CIUDADES if c != origen and dias_ruta(origen, c) is not None])
     auto = rng.choice([a for a in INVENTARIO if a["ciudad"] == origen])
     return auto, destino
 
@@ -162,7 +164,7 @@ def _logistica(rng: random.Random, j: int) -> dict:
     if dias is None:
         plazo = rng.randint(*RANGO_PLAZO_SIN_COBERTURA)
     else:
-        plazo = max(1, dias + rng.choice(AJUSTES_PLAZO))
+        plazo = max(1, dias + AJUSTES_PLAZO[j % len(AJUSTES_PLAZO)])
     prompt = (f"Quiero que me lleven el {auto['id']} a {NOMBRE_CIUDAD[destino]}. Lo necesito en máximo "
               f"{plazo} días hábiles. ¿Llega a tiempo? Contéstame sí o no y dime cuántos días hábiles tarda.")
     expected = {"posible": dias is not None and dias <= plazo, "dias": dias}

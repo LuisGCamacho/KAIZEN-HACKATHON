@@ -107,7 +107,7 @@ El prompt final del agente es `prompt de la generación` + `## Procedimiento apr
 1. **El destilador nunca ve held-out.** `distiller.train_failures()` filtra `split == "train"`. Las primeras 8 tareas de cada familia (40 en total) son held-out, y la métrica que se presume es `heldout_success`. Hay un test que lo vigila (`test_destilador_nunca_ve_heldout`).
 2. **El verificador es la única verdad.** Es binario y sin LLM. El juez y el trato solo calibran y se muestran; nunca deciden `passed`.
 3. **`expected` se calcula con las tools**, nunca se escribe a mano. Si cambias una tool, cambian las respuestas correctas. Corre `pytest` y, si hay trazas viejas, `run.py rescore`.
-4. **El entorno es determinista.** El inventario usa semilla 7 y tiene 200 autos. Las tools son funciones puras y **nunca lanzan excepción**: devuelven `{"error": ...}` o `{"ok": false, "motivo": ...}`.
+4. **El entorno es determinista, salvo la fecha.** El inventario usa semilla 7 y tiene 200 autos. `env/tools.HOY` es la fecha real del día (`date.today()`); las fechas de inspección de las tareas se calculan a partir de ella, así que sus folios esperados cambian de un día a otro. Una corrida que cruza la medianoche mezcla dos días, y `rescore` debe calificar contra el `expected` guardado en cada `Trace`, no contra el de `env/tareas.py`. Las tools son funciones puras y **nunca lanzan excepción**: devuelven `{"error": ...}` o `{"ok": false, "motivo": ...}`.
 5. **Todo el LLM pasa por `core/llm.py`** (`chat()` o `chat_json()`). Nadie más importa `openai` para llamar al modelo; solo se importa para capturar sus excepciones. Ahí viven el contador de gasto y la guardia `BudgetExceeded`.
 6. **`estilo.md` (trato) es fijo.** El destilador no escribe reglas de tono; las agrega el sistema.
 7. **Sin datos inventados.** Si el juez o el trato fallan, la nota queda en `None`. Nunca se rellena.
@@ -169,7 +169,7 @@ Si cambias la forma de alguno, actualiza `web/lib/types.ts` y avisa.
   - Domingo: sucursal cerrada.
   - Días 1 y 15: agenda llena.
   - MID↔GDL y MID↔MTY: sin cobertura.
-- "Hoy" en las tareas es el **lunes 9 de noviembre de 2026**.
+- "Hoy" en las tareas es la fecha real del día en que corre el proceso (`env/tools.HOY`).
 - La lista oficial de etiquetas está en `env/verificador.py` (`REASONS`). Agregar una implica avisar a front, porque la vista Autopsia agrupa por ellas.
 
 ## Variables de entorno (`backend/.env`, nunca a git)
