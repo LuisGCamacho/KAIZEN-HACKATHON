@@ -1,5 +1,5 @@
-import { LineageView } from "../../components/views/lineage-view";
+import { LinajeConectado } from "../../components/connected-views";
 
 export default function LinajePage() {
-  return <LineageView state={{ status: "empty" }} />;
+  return <LinajeConectado />;
 }

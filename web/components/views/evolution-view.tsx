@@ -2,6 +2,7 @@ import { AppShell } from "../app-shell";
 import { DeltaBars } from "../charts/delta-bars";
 import { FitnessChart } from "../charts/fitness-chart";
 import { DataGate, MetricCard, PanelEmpty, SectionHeading } from "../ui/data-display";
+import { descargar, generacionesACsv } from "../../lib/csv";
 import { num, pct, signedPct } from "../../lib/format";
 import type { Artifact, Generation, Progress, ReportsFile } from "../../lib/types";
 import type { ViewState } from "../../lib/view-state";
@@ -30,10 +31,12 @@ function Activity({ progress }: { progress: Progress | null }) {
   if (!progress?.lineas.length) return <PanelEmpty>No hay actividad reciente.</PanelEmpty>;
   return <ol className="activity-lines" aria-live="polite">{progress.lineas.slice(-6).map((line, index) => <li key={`${index}-${line}`}><code>{line}</code></li>)}</ol>;
 }
-export function EvolutionView({ reports, artifacts, progress }: {
+export function EvolutionView({ reports, artifacts, progress, generar }: {
   reports: ViewState<ReportsFile>;
   artifacts: ViewState<Artifact[]>;
   progress: ViewState<Progress>;
+  /** Acción del botón «Generar siguiente» (POST /api/run). Sin ella el botón queda deshabilitado. */
+  generar?: { lanzar: () => void; deshabilitado: boolean; aviso: string | null };
 }) {
   return <AppShell active="/" section="Operaciones automotrices · held-out" title="Evolución"
     description="Sigue el rendimiento de cada generación y revisa la evidencia que explica sus cambios.">
@@ -48,9 +51,13 @@ export function EvolutionView({ reports, artifacts, progress }: {
         const progressData = progress.status === "ready" ? progress.data : null;
         return <>
           <div className="overview-actions">
-            <button className="btn" type="button" disabled aria-describedby="actions-note">Exportar CSV</button>
-            <button className="btn btn-primary" type="button" disabled aria-describedby="actions-note">Generar siguiente</button>
-            <span className="action-note" id="actions-note">Las acciones se habilitarán al conectar la API.</span>
+            <button className="btn" type="button" disabled={rows.length === 0}
+              onClick={() => descargar(`kaizen-${branch}-generaciones.csv`, generacionesACsv(rows))}>Exportar CSV</button>
+            <button className="btn btn-primary" type="button" disabled={!generar || generar.deshabilitado}
+              onClick={generar?.lanzar} aria-describedby="actions-note">Generar siguiente</button>
+            <span className="action-note" id="actions-note" role="status">
+              {generar?.aviso ?? (generar ? "Destila los fallos de train y evalúa la nueva generación." : "Las acciones se habilitarán al conectar la API.")}
+            </span>
           </div>
           <div className="grid g4">
             <MetricCard label="Éxito held-out" value={pct(best?.heldout_mean)} note={best ? `Mejor: generación ${best.generation}` : "Sin generaciones"} />

@@ -14,14 +14,30 @@ function eventText(event: LiveEvent): string {
     case "error": return event.message;
   }
 }
-export function LiveView({ state }: { state: ViewState<LiveEvent[]> }) {
+export type LiveComposer = {
+  texto: string;
+  cambiarTexto: (texto: string) => void;
+  enviar: () => void;
+  detener: () => void;
+  enCurso: boolean;
+  destino: string; // p. ej. "main · mejor generación", para que el público sepa con quién habla
+};
+
+export function LiveView({ state, composer }: { state: ViewState<LiveEvent[]>; composer?: LiveComposer }) {
   return <AppShell active="/live" section="Observación" title="En vivo"
     description="Sigue la conversación con el agente, sus delegaciones y las herramientas que usa.">
     <section className="card live-composer">
       <label className="lbl" htmlFor="live-prompt">Mensaje para el agente</label>
-      <div className="composer-row"><textarea id="live-prompt" rows={3} disabled placeholder="El envío se habilitará al conectar la sesión en vivo." />
-        <button className="btn btn-primary" type="button" disabled>Enviar</button></div>
-      <p className="page-footnote">La conversación se conecta a <code>POST /api/live</code>.</p>
+      <form className="composer-row" onSubmit={evento => { evento.preventDefault(); composer?.enviar(); }}>
+        <textarea id="live-prompt" rows={3} disabled={!composer || composer.enCurso}
+          value={composer?.texto ?? ""} onChange={evento => composer?.cambiarTexto(evento.target.value)}
+          onKeyDown={evento => { if (evento.key === "Enter" && !evento.shiftKey) { evento.preventDefault(); composer?.enviar(); } }}
+          placeholder={composer ? "Escribe como cliente, p. ej. «¿Qué garantía tiene el A010 por falla de motor?»" : "El envío se habilitará al conectar la sesión en vivo."} />
+        {composer?.enCurso
+          ? <button className="btn" type="button" onClick={composer.detener}>Detener</button>
+          : <button className="btn btn-primary" type="submit" disabled={!composer || !composer.texto.trim()}>Enviar</button>}
+      </form>
+      <p className="page-footnote">{composer ? <>Conversando con <code>{composer.destino}</code> por <code>POST /api/live</code>.</> : <>La conversación se conecta a <code>POST /api/live</code>.</>}</p>
     </section>
     <section className="card live-timeline" aria-live="polite">
       <SectionHeading eyebrow="Sesión" title="Actividad del agente" />

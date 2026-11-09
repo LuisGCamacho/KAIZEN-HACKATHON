@@ -1,5 +1,5 @@
-import { LiveView } from "../../components/views/live-view";
+import { LiveConectada } from "../../components/live-conectada";
 
 export default function EnVivoPage() {
-  return <LiveView state={{ status: "empty" }} />;
+  return <LiveConectada />;
 }

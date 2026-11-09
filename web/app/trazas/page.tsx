@@ -1,5 +1,5 @@
-import { TracesView } from "../../components/views/traces-view";
+import { TrazasConectadas } from "../../components/connected-views";
 
 export default function TrazasPage() {
-  return <TracesView state={{ status: "empty" }} />;
+  return <TrazasConectadas />;
 }

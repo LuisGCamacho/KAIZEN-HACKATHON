@@ -1,9 +1,5 @@
-import { EvolutionView } from "../components/views/evolution-view";
+import { EvolucionConectada } from "../components/connected-views";
 
 export default function EvolucionPage() {
-  return <EvolutionView
-    reports={{ status: "empty" }}
-    artifacts={{ status: "empty" }}
-    progress={{ status: "empty" }}
-  />;
+  return <EvolucionConectada />;
 }

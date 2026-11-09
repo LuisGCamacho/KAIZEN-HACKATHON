@@ -1,5 +1,5 @@
-import { ToolsView } from "../../components/views/tools-view";
+import { HerramientasConectada } from "../../components/connected-views";
 
 export default function HerramientasPage() {
-  return <ToolsView state={{ status: "empty" }} />;
+  return <HerramientasConectada />;
 }
