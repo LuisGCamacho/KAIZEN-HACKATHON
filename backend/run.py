@@ -87,10 +87,14 @@ def _recalificar(trato: bool) -> None:
     rescore.main(trato=trato)
 
 
-def _exportar() -> list[str]:
+def _exportar(dentro_de_corrida: bool = True) -> list[str]:
+    """Escribe los JSON de la web. Fuera de una corrida (`run.py export`) no toca progress.json: marcar la
+    fase dejaba corriendo=True sin nadie que lo cerrara, y la web deshabilitaba los botones de correr."""
     from evaluation import export
-    progress.fase("exportando")
-    return export.export_all(log=progress.linea)
+    if dentro_de_corrida:
+        progress.fase("exportando")
+        return export.export_all(log=progress.linea)
+    return export.export_all()
 
 
 # ---------------------------------------------------------------------------
@@ -278,7 +282,7 @@ def ejecutar(args: argparse.Namespace) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = argumentos(argv)
     if args.cmd == "export":  # solo lee y escribe JSON: no necesita lock
-        return SALIDA_ERROR if _exportar() else SALIDA_OK
+        return SALIDA_ERROR if _exportar(dentro_de_corrida=False) else SALIDA_OK
     if args.cmd == "reset" and args.dry:
         reset(simulado=True)
         return SALIDA_OK

@@ -264,3 +264,9 @@ def test_loop_reducido_evalua_50_tareas_por_generacion(datos, monkeypatch):
     assert run.main(["loop", "--until", "1", "--seeds", "1"]) == run.SALIDA_OK
     assert len(almacen.cargar_trazas("main", 0)) == 50
     assert len(almacen.cargar_trazas("main", 1)) == 50
+
+
+def test_export_suelto_no_deja_la_corrida_como_activa(datos):
+    """run.py export no toma el lock ni cierra la corrida: no debe marcar corriendo=True en progress.json."""
+    assert run.main(["export"]) == run.SALIDA_OK
+    assert leer_web("progress.json")["corriendo"] is False
