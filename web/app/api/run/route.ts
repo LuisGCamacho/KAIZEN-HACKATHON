@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 
+import { errorInterno, leerJsonLimitado } from "@/lib/server/http";
 import { LOCK, runPython } from "@/lib/server/python";
 
 /**
@@ -16,6 +17,8 @@ const BRANCHES = ["main", "smoke"]; // ramas que acepta "next"; control tiene su
 const CONFIRMACION_RESET = "RESET";
 // run.py tarda en crear el lock tras arrancar; en esa ventana un segundo clic también debe recibir 409
 const VENTANA_ARRANQUE_MS = 5_000;
+
+const MAX_BODY_BYTES = 1024; // el cuerpo es un comando corto
 
 let ultimoLanzamiento = 0;
 
@@ -35,9 +38,9 @@ function corridaEnCurso(): boolean {
 }
 
 export async function POST(request: Request) {
-  const body: { command?: unknown; branch?: unknown; confirm?: unknown } = await request
-    .json()
-    .catch(() => ({}));
+  const lectura = await leerJsonLimitado(request, MAX_BODY_BYTES);
+  if (!lectura.ok) return lectura.respuesta;
+  const body = (lectura.valor ?? {}) as { command?: unknown; branch?: unknown; confirm?: unknown };
   const command = typeof body.command === "string" ? body.command : "next";
   if (!Object.hasOwn(COMMANDS, command)) {
     return Response.json({ error: "comando desconocido" }, { status: 400 });
@@ -57,7 +60,7 @@ export async function POST(request: Request) {
   try {
     child = runPython("run.py", args, true); // desacoplado: sigue aunque termine la petición
   } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message : "no se pudo lanzar Python" }, { status: 500 });
+    return errorInterno("/api/run no pudo lanzar Python", e);
   }
   ultimoLanzamiento = Date.now();
   // Sin este manejador, un fallo asíncrono de spawn (p. ej. KAIZEN_PYTHON mal escrito) tumbaría el servidor

@@ -1,22 +1,13 @@
 """Tests del destilador con un modelo falso y carpetas temporales: no llaman a la API ni gastan presupuesto."""
 from __future__ import annotations
 
-import json
-import sys
 from types import SimpleNamespace
 
 import pytest
 
-# improve/tool_synth.py es el siguiente archivo por construir. Mientras no exista, un módulo vacío permite
-# importar el destilador; cada test define qué devuelve la síntesis.
-try:
-    import improve.tool_synth  # noqa: F401
-except ModuleNotFoundError:
-    sys.modules["improve.tool_synth"] = SimpleNamespace(sintetizar=lambda *argumentos: None)
-
-from core import artifacts, llm  # noqa: E402
-from core.contracts import AgentSpec, Step, Trace, Verdict  # noqa: E402
-from improve import distiller  # noqa: E402
+from core import artifacts, llm, paths
+from core.contracts import AgentSpec, Step, Trace, Verdict
+from improve import distiller
 
 MARCADOR_HELDOUT = "PETICION_HELDOUT_SECRETA"
 
@@ -49,9 +40,9 @@ def entorno(tmp_path, monkeypatch):
     (carpetas.prompts / "gen_0.md").write_text("Si dudas, escala a un humano.\n", encoding="utf-8")
     (carpetas.meta / "distiller_prompt_v0.md").write_text("Escribe un procedimiento.\n", encoding="utf-8")
 
-    for nombre, valor in [("DATA", data), ("PROMPTS", carpetas.prompts), ("PLAYBOOKS", carpetas.playbooks),
-                          ("META", carpetas.meta)]:
+    for nombre, valor in [("DATA", data), ("PROMPTS", carpetas.prompts), ("PLAYBOOKS", carpetas.playbooks)]:
         monkeypatch.setattr(distiller, nombre, valor)
+    monkeypatch.setattr(paths, "META", carpetas.meta)  # core/versions.py lee el prompt del destilador desde aquí
     monkeypatch.setattr(distiller, "rel", lambda ruta: ruta.relative_to(data).as_posix())
     monkeypatch.setattr(artifacts, "REGISTRO", carpetas.meta / "artifacts.json")
 

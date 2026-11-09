@@ -3,6 +3,7 @@ backend/.venv/
 __pycache__/
 *.pyc
 backend/data/runs/.lock
+backend/data/runs/.corrida.candado
 backend/data/runs/spend.json
 backend/data/runs/spend.json.lock
 backend/data/runs/registro.log

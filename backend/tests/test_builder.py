@@ -2,22 +2,13 @@
 from __future__ import annotations
 
 import json
-import sys
-import types
 from types import SimpleNamespace
 
 import pytest
 
-# env/tools.py lo entrega Backend A. Mientras no exista, un módulo vacío permite importar el builder;
-# cada test inyecta sus propias herramientas base.
-try:
-    import env.tools  # noqa: F401
-except ModuleNotFoundError:
-    sys.modules["env.tools"] = types.SimpleNamespace(FUNCIONES={}, ESQUEMAS={})
-
-from agents import builder  # noqa: E402
-from core import llm  # noqa: E402
-from core.contracts import AgentSpec  # noqa: E402
+from agents import builder
+from core import llm
+from core.contracts import AgentSpec
 
 CODIGO_TOOL_GENERADA = '''
 def duplicar(numero: int) -> dict:

@@ -1,10 +1,11 @@
+import { errorInterno, leerJsonLimitado } from "@/lib/server/http";
 import { runPython } from "@/lib/server/python";
 
 /** Límites de la demo pública: el servidor es compartido y cada conversación gasta presupuesto. */
 const MAX_BODY_BYTES = 64 * 1024;
 const MAX_PROCESOS_SIMULTANEOS = 4;
 const TIMEOUT_MS = 180_000; // una conversación con supervisor y varias tools tarda menos de 1 minuto
-const MAX_STDERR = 2_000; // solo el final del error de Python
+const MAX_STDERR = 2_000; // solo el final del error de Python, para el log del servidor
 const PATRON_RAMA = /^[a-z0-9_-]{1,32}$/;
 
 let procesosActivos = 0;
@@ -20,16 +21,9 @@ function generacionValida(valor: unknown): valor is Generacion {
 }
 
 export async function POST(request: Request) {
-  const texto = await request.text();
-  if (texto.length > MAX_BODY_BYTES) {
-    return Response.json({ error: "petición demasiado grande" }, { status: 413 });
-  }
-  let body: { messages?: unknown; generation?: unknown; branch?: unknown };
-  try {
-    body = JSON.parse(texto);
-  } catch {
-    return Response.json({ error: "JSON inválido" }, { status: 400 });
-  }
+  const lectura = await leerJsonLimitado(request, MAX_BODY_BYTES);
+  if (!lectura.ok) return lectura.respuesta;
+  const body = (lectura.valor ?? {}) as { messages?: unknown; generation?: unknown; branch?: unknown };
   if (!Array.isArray(body.messages)) {
     return Response.json({ error: "messages debe ser una lista" }, { status: 400 });
   }
@@ -44,7 +38,7 @@ export async function POST(request: Request) {
   try {
     child = runPython("live.py");
   } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message : "no se pudo lanzar Python" }, { status: 500 });
+    return errorInterno("/api/live no pudo lanzar Python", e);
   }
   procesosActivos++;
   let liberado = false;
@@ -86,7 +80,8 @@ export async function POST(request: Request) {
       child.on("error", (e) => {
         clearTimeout(limite);
         liberar();
-        if (!closed) controller.enqueue(lineaError(`no se pudo ejecutar Python: ${e.message}`));
+        console.error("/api/live: error del proceso de Python:", e);
+        if (!closed) controller.enqueue(lineaError("no se pudo ejecutar el agente"));
         cerrar();
       });
       child.on("close", (code) => {
@@ -94,7 +89,9 @@ export async function POST(request: Request) {
         liberar();
         // live.py emite sus propios errores y sale con 0; otro código es un fallo que no alcanzó a reportar
         if (code !== 0 && code !== null && !closed) {
-          controller.enqueue(lineaError(`live.py terminó con código ${code}: ${stderr.trim() || "sin detalle"}`));
+          // El traceback trae rutas del servidor: va al log, no al público de la demo
+          console.error(`/api/live: live.py terminó con código ${code}:\n${stderr.trim() || "sin detalle"}`);
+          controller.enqueue(lineaError(`el agente terminó con un error interno (código ${code})`));
         }
         cerrar();
       });

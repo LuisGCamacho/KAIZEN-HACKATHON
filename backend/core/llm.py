@@ -26,7 +26,7 @@ MODELO_INTELIGENTE = os.getenv("MODEL_SMART", "gpt-4.1")  # destilador, síntesi
 PRESUPUESTO_USD = float(os.getenv("BUDGET_USD", "20"))
 ARCHIVO_GASTO = SPEND  # contrato: {"usd": float}
 
-# USD por millón de tokens (entrada, salida). PRICE_<MODELO>=entrada,salida en .env sobrescribe o agrega.
+# USD por millón de tokens (entrada, salida). PRICE_<MODELO>=entrada,salida[,cache] en .env sobrescribe o agrega.
 PRECIOS_POR_MILLON = {
     "gpt-4.1-mini": (0.40, 1.60),
     "gpt-4.1": (2.00, 8.00),
@@ -35,6 +35,15 @@ PRECIOS_POR_MILLON = {
     "gpt-4o": (2.50, 10.00),
 }
 PRECIO_MODELO_DESCONOCIDO = (2.00, 8.00)  # se asume caro: subestimar el gasto es peor que sobreestimarlo
+# Entrada en caché (USD por millón): OpenAI cobra menos el prefijo repetido del prompt (sistema + tools),
+# que en el bucle ReAct se reenvía en cada paso. Fuente: developers.openai.com/api/docs/pricing
+PRECIOS_CACHE_POR_MILLON = {
+    "gpt-4.1-mini": 0.10,
+    "gpt-4.1": 0.50,
+    "gpt-4.1-nano": 0.025,
+    "gpt-4o-mini": 0.075,
+    "gpt-4o": 1.25,
+}
 TOKENS_POR_MILLON = 1_000_000
 
 HOSTS_LOCALES = ("localhost", "127.0.0.1")
@@ -103,18 +112,40 @@ def precio_por_millon(modelo: str) -> tuple[float, float]:
     """(entrada, salida) en USD por millón de tokens. Un modelo local no cuesta."""
     if es_modelo_local():
         return 0.0, 0.0
-    variable = "PRICE_" + modelo.upper().replace("-", "_").replace(".", "_")
-    precio_configurado = os.getenv(variable)
+    precio_configurado = os.getenv(_variable_de_precio(modelo))
     if precio_configurado:
-        entrada, salida = precio_configurado.split(",")
+        entrada, salida = precio_configurado.split(",")[:2]
         return float(entrada), float(salida)
     return PRECIOS_POR_MILLON.get(modelo, PRECIO_MODELO_DESCONOCIDO)
 
 
+def _variable_de_precio(modelo: str) -> str:
+    return "PRICE_" + modelo.upper().replace("-", "_").replace(".", "_")
+
+
+def precio_cache_por_millon(modelo: str) -> float:
+    """USD por millón de tokens de entrada en caché. Sin dato, se cobra como entrada normal (no se subestima)."""
+    if es_modelo_local():
+        return 0.0
+    partes = os.getenv(_variable_de_precio(modelo), "").split(",")
+    if len(partes) == 3:
+        return float(partes[2])
+    return PRECIOS_CACHE_POR_MILLON.get(modelo, precio_por_millon(modelo)[0])
+
+
+def tokens_en_cache(uso) -> int:
+    """Tokens del prompt que vinieron de caché; 0 si la respuesta no lo informa (p. ej. un servidor local)."""
+    detalle = getattr(uso, "prompt_tokens_details", None)
+    return getattr(detalle, "cached_tokens", None) or 0
+
+
 def costo_usd(modelo: str, uso) -> float:
-    """`uso` es el objeto `usage` de la respuesta, con prompt_tokens y completion_tokens."""
+    """`uso` es el objeto `usage` de la respuesta, con prompt_tokens, completion_tokens y, si hay caché,
+    prompt_tokens_details.cached_tokens (incluidos en prompt_tokens, pero con otro precio)."""
     precio_entrada, precio_salida = precio_por_millon(modelo)
-    return (uso.prompt_tokens * precio_entrada + uso.completion_tokens * precio_salida) / TOKENS_POR_MILLON
+    en_cache = tokens_en_cache(uso)
+    return ((uso.prompt_tokens - en_cache) * precio_entrada + en_cache * precio_cache_por_millon(modelo)
+            + uso.completion_tokens * precio_salida) / TOKENS_POR_MILLON
 
 
 def revisar_presupuesto() -> None:

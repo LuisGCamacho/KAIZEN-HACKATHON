@@ -114,8 +114,9 @@ El prompt final del agente es `prompt de la generación` + `## Procedimiento apr
 8. **Escritura atómica a `web/public/data/`:** se escribe `archivo.tmp` y luego `replace`. La interfaz hace polling y no debe leer un JSON a medias.
 9. **Rutas:** usa `core/paths.py`. Las rutas guardadas en specs y artefactos son relativas a `data/` y usan `/` (`paths.rel()`).
 10. **Las conversaciones de `live.py` no entran al aprendizaje.** Se guardan en `data/runs/live/`.
-11. **Una sola corrida a la vez:** `run.py` crea `data/runs/.lock` y lo borra en `finally`. Si quedó huérfano tras un crash, se borra a mano.
+11. **Una sola corrida a la vez:** `run.py` mantiene tomado durante toda la corrida un candado del sistema operativo (`data/runs/.corrida.candado`) y escribe `data/runs/.lock` con su PID para que lo vea `/api/run`. Si run.py muere (crash o reinicio), el sistema libera el candado y el `.lock` huérfano se reemplaza solo: no hay que borrar nada a mano.
 12. **El gate de tools es un filtro, no un sandbox.** Usa una allowlist de imports (`env.tools`, `env.inventario`, `math`, `datetime`, `typing`), prohíbe builtins peligrosos y dunders, y corre pytest con timeout. Solo es apto para uso local.
+13. **El gasto se suma sobre `spend.json`, no en memoria:** `run.py` y cada `live.py` son procesos distintos que gastan a la vez. `llm.CONTADOR_GASTO` relee el archivo bajo un candado entre procesos (`spend.json.lock`); `total_usd` es de solo lectura.
 
 ## Contratos (`core/contracts.py` ↔ `web/lib/types.ts`)
 
@@ -181,9 +182,10 @@ Si cambias la forma de alguno, actualiza `web/lib/types.ts` y avisa.
 | `MODEL_AGENT` | `gpt-4.1-mini` | Agente evaluado, juez y trato |
 | `MODEL_SMART` | `gpt-4.1` | Destilador, síntesis de tools y meta-loop |
 | `BUDGET_USD` | `20` | Corte duro del gasto acumulado en `data/runs/spend.json` |
-| `PRICE_<MODELO>` | — | `entrada,salida` en USD por millón de tokens, para modelos que no estén en la tabla de `llm.py` |
+| `PRICE_<MODELO>` | — | `entrada,salida[,cache]` en USD por millón de tokens, para modelos que no estén en la tabla de `llm.py`. Sin precio se asume el de gpt-4.1; sin `cache`, la entrada en caché se cobra como entrada normal |
 | `KAIZEN_SEEDS` | `1,2,3` | Semillas por generación |
 | `KAIZEN_WORKERS` | `8` | Episodios en paralelo (1 con un modelo local) |
+| `KAIZEN_PYTHON` | `backend/.venv/…/python` | **Lo lee la web**, no el backend (`web/.env.local` o el entorno del servicio): intérprete con el que `/api/run` y `/api/live` lanzan Python |
 
 ## Convenciones
 
