@@ -88,11 +88,11 @@ backend/
 1. Carga la spec del padre y sus trazas.
 2. **Meta-juez:** con 3 o más discrepancias de más de 0.5 entre juez y verificador, reescribe la rúbrica.
 3. **Meta-destilador:** si el último delta en held-out fue menor que el anterior, o ≤ 0, reescribe el prompt del destilador.
-4. **Destilador:** toma solo los fallos de **train**, agrupa por `reason` y, para las 3 causas más frecuentes, escribe un playbook e intenta sintetizar una tool. Reescribe el prompt de sistema. Si más del 40 % de los fallos son de `logistica` o `tramite`, pasa de `single_react` a `supervisor` (sub-agentes `cotizador`, `logistica` y `garantia`).
+4. **Destilador:** toma solo los fallos de **train**, agrupa por `reason` y, para las 3 causas más frecuentes, escribe un playbook e intenta sintetizar una tool. Reescribe el prompt de sistema. La topología y los sub-agentes se heredan del padre. **Pendiente:** pasar a `supervisor` cuando más del 40 % de los fallos sean de `logistica` o `tramite`; hoy `builder.build()` solo acepta `single_react` y rechaza `supervisor`.
 5. Guarda `specs/<rama>/gen_N.json` y exporta.
 6. Evalúa con cada semilla, guarda trazas y reportes, y exporta.
 
-El prompt final del agente es `prompt de la generación` + `## Procedimiento aprendido` (cada playbook) + `## Trato al cliente` (`estilo.md`). Lo arma `builder.instructions()`.
+El prompt final del agente es `prompt de la generación` + `## Procedimiento aprendido` (cada playbook). Lo arma `builder.instrucciones()`. **Pendiente:** el bloque `## Trato al cliente` con `estilo.md`; ni `estilo.md` ni `evaluation/trato.py` existen todavía, y `run.py rescore --trato` avisa que falta.
 
 ## Ramas
 
@@ -104,7 +104,7 @@ El prompt final del agente es `prompt de la generación` + `## Procedimiento apr
 
 ## Invariantes: NO romper
 
-1. **El destilador nunca ve held-out.** `distiller.train_failures()` filtra `split == "train"`. Las primeras 8 tareas de cada familia (40 en total) son held-out, y la métrica que se presume es `heldout_success`. Hay un test que lo vigila (`test_destilador_nunca_ve_heldout`).
+1. **El destilador nunca ve held-out.** `distiller.fallos_de_train()` filtra `split == "train"`. Las primeras 8 tareas de cada familia (40 en total) son held-out, y la métrica que se presume es `heldout_success`. Hay un test que lo vigila (`test_el_destilador_nunca_ve_heldout`).
 2. **El verificador es la única verdad.** Es binario y sin LLM. El juez y el trato solo calibran y se muestran; nunca deciden `passed`.
 3. **`expected` se calcula con las tools**, nunca se escribe a mano. Si cambias una tool, cambian las respuestas correctas. Corre `pytest` y, si hay trazas viejas, `run.py rescore`.
 4. **El entorno es determinista, salvo la fecha.** El inventario usa semilla 7 y tiene 200 autos. `env/tools.HOY` es la fecha real del día (`date.today()`); las fechas de inspección de las tareas se calculan a partir de ella, así que sus folios esperados cambian de un día a otro. Una corrida que cruza la medianoche mezcla dos días, y `rescore` debe calificar contra el `expected` guardado en cada `Trace`, no contra el de `env/tareas.py`. Las tools son funciones puras y **nunca lanzan excepción**: devuelven `{"error": ...}` o `{"ok": false, "motivo": ...}`.

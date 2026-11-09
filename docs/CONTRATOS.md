@@ -32,7 +32,7 @@ Estos contratos son la frontera entre **BACKEND**, **FRONT** y **AI ENGINEER**. 
 | `backend/data/runs/<rama>/gen_N/seed_S.jsonl` | Backend (harness) | Destilador, export | Una `Trace` por línea |
 | `backend/data/runs/<rama>/reports.json` | Backend (harness) | Export, meta-destilador | `GenerationReport[]` |
 | `backend/data/runs/spend.json` | Backend (cliente LLM) | Export | `{"usd": float}`, el gasto real acumulado |
-| `backend/data/runs/.lock` | Backend (`run.py`) | `/api/run` | `{"pid": int, "inicio": iso}` mientras hay una corrida |
+| `backend/data/runs/.lock` | Backend (`run.py`) | `/api/run` | El PID de la corrida, como texto, mientras hay una corrida |
 | `web/public/data/*.json` | Backend (export) | Front | Ver §5 |
 | NDJSON de `/api/live` | Backend (`live.py`) | Front (En vivo) | Ver §6 |
 
@@ -195,7 +195,7 @@ Códigos de salida de `run.py`:
 - `chat()` devuelve `(mensaje, tokens, costo_usd)`.
 - `chat_json()` devuelve `(dict, costo_usd)`.
 - Antes de cada llamada se revisa el presupuesto. Si se llegó a `BUDGET_USD`, se lanza `BudgetExceeded`.
-- `MODEL_AGENT` es el agente que se evalúa. `MODEL_SMART` lo usan el juez, el destilador, la síntesis de tools y el meta-loop.
+- `MODEL_AGENT` lo usan el agente que se evalúa y el juez. `MODEL_SMART` lo usan el destilador, la síntesis de tools y el meta-loop.
 
 ## 9. Variables de entorno (`backend/.env`)
 
