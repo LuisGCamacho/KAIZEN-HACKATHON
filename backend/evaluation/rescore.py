@@ -7,7 +7,7 @@ día con el expected nuevo cambiaría el examen que el agente realmente present�
 from __future__ import annotations
 
 from core import almacen, paths, progress
-from core.contracts import Task, Trace
+from core.contracts import REASON_ERROR_API, Task, Trace
 from env.tareas import POR_ID_TAREA
 from env.verificador import verificar
 from evaluation import evals, history
@@ -21,6 +21,8 @@ def tarea_de_la_traza(traza: Trace) -> Task:
 
 def recalificar(traza: Trace) -> bool:
     """Vuelve a pasar el verificador y conserva las notas del juez. Devuelve True si el resultado cambió."""
+    if traza.verdict.reason == REASON_ERROR_API:  # el agente nunca respondió: no hay nada que recalificar
+        return False
     usadas = [paso.tool for paso in traza.steps]
     exitosas = [paso.tool for paso in traza.steps if paso.ok]
     nuevo = verificar(tarea_de_la_traza(traza), traza.final_answer, usadas, traza.exhausted, exitosas)

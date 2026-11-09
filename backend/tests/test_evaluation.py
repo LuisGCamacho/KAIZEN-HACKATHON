@@ -1,11 +1,13 @@
 """Tests del harness (evals), el historial y el rescore. El agente y el juez son falsos: no llaman al LLM."""
 from __future__ import annotations
 
+import httpx2 as httpx  # openai 3.x usa httpx2
+import openai
 import pytest
 
 from agents.agent import ResultadoAgente
-from core import almacen, archivos
-from core.contracts import AgentSpec, GenerationReport, Step
+from core import almacen, archivos, llm
+from core.contracts import REASON_ERROR_API, AgentSpec, GenerationReport, Step
 from env.tareas import POR_ID_TAREA
 from evaluation import evals, history, judge, rescore
 
@@ -99,3 +101,32 @@ def test_rescore_usa_el_expected_guardado(harness):
 def test_rescore_con_trato_avisa_que_falta(datos):
     with pytest.raises(NotImplementedError):
         rescore.main(trato=True)
+
+
+def _agente_que_falla_en_trampas(conversacion, notificar=None) -> ResultadoAgente:
+    tarea = next(t for t in TAREAS_PRUEBA if t["prompt"] == conversacion[0]["content"])
+    if tarea["family"] == "trampa":
+        raise openai.APIConnectionError(request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"))
+    return _agente_falso(conversacion)
+
+
+def test_un_error_de_api_no_tumba_la_generacion(harness, monkeypatch):
+    monkeypatch.setattr(evals.builder, "build", lambda spec, seed=None: _agente_que_falla_en_trampas)
+    spec = _spec()
+    almacen.guardar_spec(spec)
+    trazas = evals.run_generation(spec, 1, TAREAS_PRUEBA)
+    assert [t.verdict.passed for t in trazas] == [True, True, False, False]
+    assert [t.verdict.reason for t in trazas[2:]] == [REASON_ERROR_API, REASON_ERROR_API]
+    assert trazas[2].verdict.judge_p_pass is None  # sin respuesta no se juzga
+    assert evals.report(spec, 1, trazas).note == "2 episodios con error de API"
+    # El rescore conserva la etiqueta: no lo convierte en un fallo del agente
+    rescore.main()
+    assert almacen.cargar_trazas("main", 0, 1)[2].verdict.reason == REASON_ERROR_API
+
+
+def test_sin_presupuesto_si_se_corta_la_corrida(harness, monkeypatch):
+    def sin_presupuesto(conversacion, notificar=None):
+        raise llm.BudgetExceeded("Presupuesto agotado")
+    monkeypatch.setattr(evals.builder, "build", lambda spec, seed=None: sin_presupuesto)
+    with pytest.raises(llm.BudgetExceeded):
+        evals.run_generation(_spec(), 1, TAREAS_PRUEBA)
