@@ -1,0 +1,8 @@
+backend/.env
+backend/.venv/
+__pycache__/
+*.pyc
+backend/data/runs/.lock
+backend/data/runs/spend.json
+backend/data/runs/registro.log
+web/public/data/progress.json
