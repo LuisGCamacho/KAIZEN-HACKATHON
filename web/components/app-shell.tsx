@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 
 const navigation = [
   { href: "/", label: "Evolución", icon: "chart" },
@@ -33,17 +34,17 @@ export function AppShell({ active, title, description, section, children }: {
 }) {
   return <div className="app-frame">
     <aside className="sidebar" aria-label="Navegación principal">
-      <a className="brand" href="/" aria-label="KAIZEN, ir a Evolución">
+      <Link className="brand" href="/" aria-label="KAIZEN, ir a Evolución">
         <BrandMark /><span className="brand-name">KAIZEN</span><span className="brand-descriptor">Agent factory</span>
-      </a>
+      </Link>
       <button className="new-run-button" type="button" disabled title="La ejecución se habilitará cuando el backend esté implementado">
         <span aria-hidden="true">+</span> Nueva generación
       </button>
       <p className="sidebar-caption">Vistas</p>
       <nav className="primary-nav" aria-label="Vistas">
-        {navigation.map(item => <a className="nav-link" href={item.href} key={item.href} aria-current={active === item.href ? "page" : undefined}>
+        {navigation.map(item => <Link className="nav-link" href={item.href} key={item.href} aria-current={active === item.href ? "page" : undefined}>
           <Icon name={item.icon} /><span>{item.label}</span>
-        </a>)}
+        </Link>)}
       </nav>
       <div className="sidebar-spacer" />
       <div className="sidebar-note" aria-label="Estado de los datos">
