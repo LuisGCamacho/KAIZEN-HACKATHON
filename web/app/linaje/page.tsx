@@ -1,3 +1,5 @@
+import { LinajeConectado } from "../../components/connected-views";
+
 export default function LinajePage() {
-  return <h1>Linaje</h1>;
+  return <LinajeConectado />;
 }

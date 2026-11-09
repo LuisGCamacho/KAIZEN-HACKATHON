@@ -1,3 +1,5 @@
-export default function LivePage() {
-  return <h1>En vivo</h1>;
+import { LiveConectada } from "../../components/live-conectada";
+
+export default function EnVivoPage() {
+  return <LiveConectada />;
 }

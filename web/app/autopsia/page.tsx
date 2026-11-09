@@ -1,3 +1,5 @@
+import { AutopsiaConectada } from "../../components/connected-views";
+
 export default function AutopsiaPage() {
-  return <h1>Autopsia de fallos</h1>;
+  return <AutopsiaConectada />;
 }

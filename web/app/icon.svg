@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- Mismo trazo que BrandMark (components/app-shell.tsx); color = token --ink de globals.css -->
+  <rect x="1" y="1" width="22" height="22" rx="6" fill="#FFFFFF" stroke="#0D0D0D" stroke-width="1.6"/>
+  <path d="M5.5 17.5h4v-4h4v-4h4v-4" fill="none" stroke="#0D0D0D" stroke-width="2" stroke-linecap="square"/>
+</svg>

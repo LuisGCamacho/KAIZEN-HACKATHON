@@ -1,3 +1,5 @@
+import { TrazasConectadas } from "../../components/connected-views";
+
 export default function TrazasPage() {
-  return <h1>Trazas</h1>;
+  return <TrazasConectadas />;
 }

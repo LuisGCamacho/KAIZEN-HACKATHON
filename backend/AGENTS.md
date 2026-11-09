@@ -185,6 +185,9 @@ Si cambias la forma de alguno, actualiza `web/lib/types.ts` y avisa.
 | `PRICE_<MODELO>` | — | `entrada,salida[,cache]` en USD por millón de tokens, para modelos que no estén en la tabla de `llm.py`. Sin precio se asume el de gpt-4.1; sin `cache`, la entrada en caché se cobra como entrada normal |
 | `KAIZEN_SEEDS` | `1,2,3` | Semillas por generación |
 | `KAIZEN_WORKERS` | `8` | Episodios en paralelo (1 con un modelo local) |
+| `KAIZEN_PROVIDER` | `openai` | `codex` usa la CLI de Codex con una cuenta de ChatGPT (`core/proveedor_codex.py`): sin temperatura ni semilla, costo 0 USD y tope por tokens. Codex es un agente con terminal: cualquier intento de usar una herramienta propia mata el proceso y descarta la respuesta |
+| `CODEX_MAX_TOKENS` | `0` (sin tope) | Corte de tokens de Codex acumulados en `spend.json` (`codex_tokens`) |
+| `CODEX_EFFORT` / `CODEX_EFFORT_SMART` | `low` / `medium` | Esfuerzo de razonamiento del agente y juez / del destilador y meta-loop |
 | `KAIZEN_PYTHON` | `backend/.venv/…/python` | **Lo lee la web**, no el backend (`web/.env.local` o el entorno del servicio): intérprete con el que `/api/run` y `/api/live` lanzan Python |
 
 ## Convenciones

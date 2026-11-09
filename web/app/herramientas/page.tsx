@@ -1,3 +1,5 @@
+import { HerramientasConectada } from "../../components/connected-views";
+
 export default function HerramientasPage() {
-  return <h1>Herramientas</h1>;
+  return <HerramientasConectada />;
 }
