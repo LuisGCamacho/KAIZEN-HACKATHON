@@ -245,4 +245,29 @@ export type LiveRequest = {
   messages: { role: "user" | "assistant"; content: string }[];
   generation: number | "best" | "latest";
   branch: string;
+  conversation_id?: string; // con él, live.py guarda todos los turnos en un solo archivo (historial)
 };
+
+/** Un turno guardado por live.py: la pregunta del cliente y lo que pasó al responderla. */
+export type LiveTurn = {
+  question: string;
+  answer: string | null;
+  error: string | null;
+  tools: number;
+  events: LiveEvent[];
+};
+
+/** data/runs/live/<id>.json: una conversación completa de /live (GET /api/conversaciones/<id>). */
+export type LiveConversation = {
+  id: string;
+  title: string;
+  branch: string;
+  generation: number | null;
+  created: string;
+  updated: string;
+  messages: { role: "user" | "assistant"; content: string }[];
+  turns: LiveTurn[];
+};
+
+/** Resumen para la lista del historial (GET /api/conversaciones). */
+export type LiveConversationSummary = Omit<LiveConversation, "messages" | "turns"> & { turns: number };

@@ -7,6 +7,8 @@ import path from "node:path";
 /** Carpeta del backend: la web y el backend viven en el mismo repo (web/ y backend/). */
 export const BACKEND = path.resolve(process.cwd(), "..", "backend");
 export const LOCK = path.join(BACKEND, "data", "runs", ".lock");
+/** Conversaciones de /live (las escribe backend/live.py): el historial del chat. */
+export const LIVE_DIR = path.join(BACKEND, "data", "runs", "live");
 
 /** Python del venv del backend (Windows o Unix). KAIZEN_PYTHON lo sobrescribe, p. ej. en el servidor. */
 export function pythonPath(): string {

@@ -280,3 +280,47 @@ button,input{font:inherit}
 .live-chat .page-footnote{margin:0}
 @media(max-width:1024px){.live-layout{grid-template-columns:1fr}.live-layout .live-timeline{max-height:none}}
 @media(max-width:480px){.chat-msg{max-width:100%}.live-chat .composer-row{flex-direction:column;align-items:stretch}}
+
+/* Corrida en curso: visible en todas las vistas; confirmación antes de lanzar (gasta créditos) */
+.run-confirm{display:flex;flex-direction:column;gap:10px;margin-top:10px;padding:12px;border:1px solid var(--line-strong);border-radius:var(--r-card);background:var(--bg);font-size:13px;color:var(--ink-2)}
+.run-confirm p{margin:0;line-height:1.45}
+.run-confirm-acciones{display:flex;gap:8px}
+.run-confirm-acciones .btn{min-height:36px;padding:0 14px;flex:1}
+.run-progress{display:flex;flex-direction:column;gap:14px;margin-bottom:24px;border-color:var(--line-strong)}
+.run-progress-cabeza{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.run-progress-cabeza h2{margin:2px 0 4px;font-size:18px}
+.run-progress-detalle,.run-progress-nota{margin:0;color:var(--ink-2);font-size:13px;max-width:65ch}
+.run-progress-nota{color:var(--ink-3)}
+.run-progress-cifra{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-variant-numeric:tabular-nums}
+.run-progress-barra{height:6px;border-radius:var(--r-pill);background:var(--soft);overflow:hidden}
+.run-progress-barra span{display:block;height:100%;background:var(--ink);transition:width .2s}
+.run-progress-pasos{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
+.run-progress-pasos li{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--line);border-radius:var(--r-pill);color:var(--ink-3);font-size:12px}
+.run-progress-pasos li span{font-family:var(--f-mono);font-size:11px}
+.run-progress-pasos li.paso-hecho{color:var(--ink-2)}
+.run-progress-pasos li.paso-actual{border-color:var(--ink);background:var(--ink);color:var(--bg)}
+.run-progress-lineas{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px}
+.run-progress-lineas code{color:var(--ink-3);font-family:var(--f-mono);font-size:11px;overflow-wrap:anywhere}
+.run-progress-error{border-style:dashed}
+.run-progress-error-texto{margin:4px 0;font-family:var(--f-mono);font-size:12px;color:var(--ink);overflow-wrap:anywhere}
+@media(prefers-reduced-motion:reduce){.run-progress-barra span{transition:none}}
+
+/* En vivo: historial de conversaciones (columna izquierda) y selector de generación */
+.live-layout.con-historial{grid-template-columns:240px minmax(0,3fr) minmax(0,2fr)}
+.live-historial{display:flex;flex-direction:column;gap:12px;max-height:720px;overflow-y:auto}
+.historial-nueva{min-height:40px}
+.historial-lista{display:flex;flex-direction:column;gap:4px;margin:0;padding:0;list-style:none}
+.historial-lista li{display:flex;align-items:stretch;gap:4px;border-radius:var(--r-control)}
+.historial-lista li.historial-activa{background:var(--nav-active)}
+.historial-item{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;padding:8px 10px;border:0;border-radius:var(--r-control);background:transparent;color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.historial-item:hover:not(:disabled){background:var(--soft)}
+.historial-titulo{font-size:13px;line-height:1.35;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.historial-meta{color:var(--ink-3);font-family:var(--f-mono);font-size:11px}
+.historial-borrar{width:32px;border:0;border-radius:var(--r-control);background:transparent;color:var(--ink-3);font-size:16px;cursor:pointer}
+.historial-borrar:hover:not(:disabled){background:var(--soft);color:var(--ink)}
+.historial-item:disabled,.historial-borrar:disabled{cursor:not-allowed;color:var(--ink-4)}
+.selector-generacion{display:flex;align-items:center;gap:8px;color:var(--ink-3);font-size:12px}
+.selector-generacion select{min-height:36px;max-width:240px;padding:0 10px;border:1px solid var(--line-strong);border-radius:var(--r-control);background:var(--bg);color:var(--ink);font:inherit;font-size:13px}
+@media(max-width:1280px){.live-layout.con-historial{grid-template-columns:220px minmax(0,1fr)}.live-layout.con-historial .live-timeline{grid-column:1/-1;max-height:none}}
+@media(max-width:1024px){.live-layout.con-historial{grid-template-columns:1fr}.live-historial{max-height:260px}}
+@media(max-width:480px){.selector-generacion{flex-wrap:wrap}.selector-generacion select{max-width:100%}}

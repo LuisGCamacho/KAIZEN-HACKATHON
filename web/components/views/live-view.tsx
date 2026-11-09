@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 
 import { AppShell } from "../app-shell";
 import { DataGate, MachineBadge, PanelEmpty, SectionHeading } from "../ui/data-display";
-import type { LiveEvent } from "../../lib/types";
+import type { LiveConversationSummary, LiveEvent } from "../../lib/types";
 import type { ViewState } from "../../lib/view-state";
 
 function eventText(event: LiveEvent): string {
@@ -28,7 +28,20 @@ export type LiveComposer = {
   enviar: () => void;
   detener: () => void;
   enCurso: boolean;
-  destino: string; // p. ej. "main · mejor generación", para que el público sepa con quién habla
+};
+
+export type SelectorGeneracion = {
+  opciones: { valor: string; etiqueta: string }[];
+  valor: string;
+  cambiar: (valor: string) => void;
+};
+
+export type Historial = {
+  conversaciones: LiveConversationSummary[];
+  actual: string | null;
+  seleccionar: (id: string) => void;
+  nueva: () => void;
+  borrar: (id: string) => void;
 };
 
 /** Preguntas que tocan las reglas ocultas del entorno; un clic las pone en el cuadro de texto. */
@@ -45,6 +58,33 @@ function estadoActual(eventos: LiveEvent[]): string {
   if (ultimo?.type === "tool_call") return `Consultando ${ultimo.tool}…`;
   if (ultimo?.type === "delegate") return `Delegando a ${ultimo.to}…`;
   return "Pensando la respuesta…";
+}
+
+function fechaCorta(iso: string): string {
+  const fecha = new Date(iso);
+  return Number.isNaN(fecha.getTime()) ? "" : fecha.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
+}
+
+function ListaHistorial({ historial, bloqueado }: { historial: Historial; bloqueado: boolean }) {
+  return <section className="card live-historial" aria-label="Historial de conversaciones">
+    <SectionHeading eyebrow="Historial" title="Conversaciones" />
+    <button className="btn btn-primary historial-nueva" type="button" onClick={historial.nueva} disabled={bloqueado}>
+      Nueva conversación
+    </button>
+    {historial.conversaciones.length === 0
+      ? <PanelEmpty>Aún no hay conversaciones guardadas.</PanelEmpty>
+      : <ul className="historial-lista">
+        {historial.conversaciones.map(c => <li key={c.id} className={c.id === historial.actual ? "historial-activa" : ""}>
+          <button type="button" className="historial-item" onClick={() => historial.seleccionar(c.id)} disabled={bloqueado}
+            aria-current={c.id === historial.actual ? "true" : undefined}>
+            <span className="historial-titulo">{c.title || "Sin título"}</span>
+            <span className="historial-meta">{c.generation !== null ? `gen ${c.generation}` : "—"} · {c.turns} {c.turns === 1 ? "turno" : "turnos"} · {fechaCorta(c.updated)}</span>
+          </button>
+          <button type="button" className="historial-borrar" onClick={() => historial.borrar(c.id)} disabled={bloqueado}
+            aria-label={`Borrar la conversación «${c.title}»`} title="Borrar">×</button>
+        </li>)}
+      </ul>}
+  </section>;
 }
 
 function Conversacion({ chat, eventos, composer }: { chat: MensajeChat[]; eventos: LiveEvent[]; composer?: LiveComposer }) {
@@ -78,18 +118,29 @@ function Conversacion({ chat, eventos, composer }: { chat: MensajeChat[]; evento
   </ol>;
 }
 
-export function LiveView({ state, composer, chat = [] }: {
+export function LiveView({ state, composer, chat = [], historial, generacion }: {
   state: ViewState<LiveEvent[]>;
   composer?: LiveComposer;
   chat?: MensajeChat[];
+  historial?: Historial;
+  generacion?: SelectorGeneracion;
 }) {
+  const ocupado = Boolean(composer?.enCurso);
   const eventos = state.status === "ready" ? state.data : [];
   return <AppShell active="/live" section="Observación" title="En vivo"
     description="Conversa con el agente como lo haría un cliente y observa qué herramientas usa para responder.">
-    <div className="live-layout">
+    <div className={`live-layout ${historial ? "con-historial" : ""}`}>
+      {historial && <ListaHistorial historial={historial} bloqueado={ocupado} />}
+
       <section className="card live-chat" aria-label="Conversación con el agente">
         <SectionHeading eyebrow="Atención al cliente" title="Conversación">
-          {composer && <span className="chat-caption">{composer.destino}</span>}
+          {generacion && <label className="selector-generacion">
+            <span>Generación</span>
+            <select value={generacion.valor} onChange={evento => generacion.cambiar(evento.target.value)} disabled={ocupado}
+              title="Cambiar de generación inicia una conversación nueva">
+              {generacion.opciones.map(o => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
+            </select>
+          </label>}
         </SectionHeading>
         <div className="chat-scroll"><Conversacion chat={chat} eventos={eventos} composer={composer} /></div>
         <form className="composer-row" onSubmit={evento => { evento.preventDefault(); composer?.enviar(); }}>
@@ -110,16 +161,16 @@ export function LiveView({ state, composer, chat = [] }: {
         {state.status === "empty"
           ? <PanelEmpty>Cada herramienta que el agente consulte y su resultado aparecerán aquí, en el orden en que ocurren.</PanelEmpty>
           : <DataGate state={state} source="POST /api/live" title="Aún no hay actividad"
-          description="Cada herramienta que el agente consulta y su resultado aparecerán aquí, en el orden en que ocurren.">
-          {events => events.length === 0 ? <PanelEmpty>La sesión no emitió eventos.</PanelEmpty> :
-            <ol className="event-list">{events.map((event, index) => <li key={`${event.t}-${index}`}>
-              <time dateTime={new Date(event.t).toISOString()}>{new Date(event.t).toLocaleTimeString("es-MX")}</time>
-              <span className="event-type">{event.type.replaceAll("_", " ")}</span>
-              {event.type === "tool_call" && event.generated && <MachineBadge />}
-              <p>{eventText(event)}</p>
-              {event.type === "tool_result" && <span className="event-result">{event.ok ? "Completada" : "Falló"} · {event.ms} ms</span>}
-            </li>)}</ol>}
-        </DataGate>}
+            description="Cada herramienta que el agente consulta y su resultado aparecerán aquí, en el orden en que ocurren.">
+            {events => events.length === 0 ? <PanelEmpty>La sesión no emitió eventos.</PanelEmpty> :
+              <ol className="event-list">{events.map((event, index) => <li key={`${event.t}-${index}`}>
+                <time dateTime={new Date(event.t).toISOString()}>{new Date(event.t).toLocaleTimeString("es-MX")}</time>
+                <span className="event-type">{event.type.replaceAll("_", " ")}</span>
+                {event.type === "tool_call" && event.generated && <MachineBadge />}
+                <p>{eventText(event)}</p>
+                {event.type === "tool_result" && <span className="event-result">{event.ok ? "Completada" : "Falló"} · {event.ms} ms</span>}
+              </li>)}</ol>}
+          </DataGate>}
       </section>
     </div>
   </AppShell>;

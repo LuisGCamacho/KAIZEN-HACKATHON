@@ -7,6 +7,7 @@ const MAX_PROCESOS_SIMULTANEOS = 4;
 const TIMEOUT_MS = 180_000; // una conversación con supervisor y varias tools tarda menos de 1 minuto
 const MAX_STDERR = 2_000; // solo el final del error de Python, para el log del servidor
 const PATRON_RAMA = /^[a-z0-9_-]{1,32}$/;
+const PATRON_CONVERSACION = /^[a-f0-9-]{8,64}$/; // misma regla que live.py
 
 let procesosActivos = 0;
 
@@ -23,12 +24,14 @@ function generacionValida(valor: unknown): valor is Generacion {
 export async function POST(request: Request) {
   const lectura = await leerJsonLimitado(request, MAX_BODY_BYTES);
   if (!lectura.ok) return lectura.respuesta;
-  const body = (lectura.valor ?? {}) as { messages?: unknown; generation?: unknown; branch?: unknown };
+  const body = (lectura.valor ?? {}) as { messages?: unknown; generation?: unknown; branch?: unknown; conversation_id?: unknown };
   if (!Array.isArray(body.messages)) {
     return Response.json({ error: "messages debe ser una lista" }, { status: 400 });
   }
   const branch = typeof body.branch === "string" && PATRON_RAMA.test(body.branch) ? body.branch : "main";
   const generation = generacionValida(body.generation) ? body.generation : "best";
+  const conversation_id = typeof body.conversation_id === "string" && PATRON_CONVERSACION.test(body.conversation_id)
+    ? body.conversation_id : undefined;
 
   if (procesosActivos >= MAX_PROCESOS_SIMULTANEOS) {
     return Response.json({ error: "demasiadas conversaciones a la vez; intenta en unos segundos" }, { status: 429 });
@@ -52,7 +55,7 @@ export async function POST(request: Request) {
   // Si Python muere antes de leer stdin, el EPIPE lo reporta el manejador de 'close' con el código de salida
   child.stdin!.on("error", () => undefined);
   // El texto del cliente va por stdin como JSON, nunca como argumento de línea de comandos
-  child.stdin!.end(JSON.stringify({ messages: body.messages, generation, branch }));
+  child.stdin!.end(JSON.stringify({ messages: body.messages, generation, branch, conversation_id }));
 
   let stderr = "";
   child.stderr!.on("data", (c: Buffer) => {

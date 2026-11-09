@@ -93,3 +93,24 @@ def test_fallo_del_agente_se_emite_como_error(rama_con_dos_generaciones, monkeyp
     eventos = correr(monkeypatch, capsys, {"messages": PREGUNTA})
     assert [e["type"] for e in eventos] == ["start", "error"]
     assert eventos[-1]["message"] == "RuntimeError: tool rota"
+
+
+def test_conversacion_con_id_acumula_turnos(rama_con_dos_generaciones, monkeypatch, capsys):
+    """Con conversation_id todos los turnos van a un solo archivo, listo para el historial de /live."""
+    identificador = "0f3c2a9e-1b2c-4d5e-8f90-123456789abc"
+    correr(monkeypatch, capsys, {"messages": PREGUNTA, "generation": 1, "conversation_id": identificador})
+    monkeypatch.setattr(live, "_eventos", [])
+    segunda = [*PREGUNTA, {"role": "assistant", "content": "Sí, 12 meses."}, {"role": "user", "content": "¿Y la transmisión?"}]
+    correr(monkeypatch, capsys, {"messages": segunda, "generation": 1, "conversation_id": identificador})
+    datos = json.loads((paths.LIVE_RUNS / f"{identificador}.json").read_text(encoding="utf-8"))
+    assert datos["title"] == PREGUNTA[0]["content"] and datos["generation"] == 1
+    assert [t["question"] for t in datos["turns"]] == [PREGUNTA[0]["content"], "¿Y la transmisión?"]
+    assert all(t["answer"] == "Sí, 12 meses." and t["tools"] == 1 for t in datos["turns"])
+    assert datos["messages"][-1] == {"role": "assistant", "content": "Sí, 12 meses."}
+    assert len(list(paths.LIVE_RUNS.glob("*.json"))) == 1
+
+
+def test_conversation_id_que_no_es_seguro_se_rechaza(rama_con_dos_generaciones, monkeypatch, capsys):
+    eventos = correr(monkeypatch, capsys, {"messages": PREGUNTA, "conversation_id": "../../etc/passwd"})
+    assert eventos[-1]["type"] == "error" and "conversation_id" in eventos[-1]["message"]
+    assert not any(paths.LIVE_RUNS.glob("*passwd*"))

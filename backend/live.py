@@ -24,6 +24,9 @@ MAX_MENSAJES = 20
 MAX_CARACTERES = 2_000
 ROLES_VALIDOS = {"user", "assistant"}
 PATRON_RAMA = re.compile(r"^[a-z0-9_-]{1,32}$")  # misma regla que /api/live
+# Identificador de conversación (lo genera la web): solo hex y guiones, así nunca forma una ruta fuera de live/
+PATRON_CONVERSACION = re.compile(r"^[a-f0-9-]{8,64}$")
+MAX_TITULO = 80
 
 _eventos: list[dict[str, Any]] = []
 
@@ -38,6 +41,16 @@ def emitir(evento: dict[str, Any]) -> None:
     _eventos.append(linea)
     sys.stdout.write(json.dumps(linea, ensure_ascii=False) + "\n")
     sys.stdout.flush()
+
+
+def validar_conversacion(entrada: dict[str, Any]) -> str | None:
+    """conversation_id opcional: con él, todos los turnos se guardan en un solo archivo (historial de /live)."""
+    identificador = entrada.get("conversation_id")
+    if identificador is None:
+        return None
+    if not isinstance(identificador, str) or not PATRON_CONVERSACION.match(identificador):
+        raise EntradaInvalida("conversation_id inválido")
+    return identificador
 
 
 def validar(entrada: dict[str, Any]) -> tuple[list[dict[str, str]], str, int | str]:
@@ -83,19 +96,37 @@ def construir_agente(spec: AgentSpec):
     return builder.build(spec, temperature=0.0)
 
 
-def guardar_conversacion(mensajes: list[dict[str, str]], branch: str, generacion: int | None) -> None:
-    sello = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-    archivos.escribir_json(paths.LIVE_RUNS / f"{sello}.json", {"branch": branch, "generation": generacion,
-                                                          "messages": mensajes, "events": _eventos})
+def guardar_conversacion(mensajes: list[dict[str, str]], branch: str, generacion: int | None,
+                         conversacion: str | None, respuesta: str | None, error: str | None) -> None:
+    """Sin conversation_id: un archivo por petición. Con él: un archivo por conversación al que se agrega el
+    turno (la web lo lista como historial). `messages` queda listo para continuar la conversación."""
+    ahora = datetime.now().isoformat(timespec="seconds")
+    if conversacion is None:
+        sello = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        archivos.escribir_json(paths.LIVE_RUNS / f"{sello}.json", {"branch": branch, "generation": generacion,
+                                                              "messages": mensajes, "events": _eventos})
+        return
+    ruta = paths.LIVE_RUNS / f"{conversacion}.json"
+    datos = archivos.leer_json(ruta, {"id": conversacion, "created": ahora, "turns": [],
+                                      "title": mensajes[0]["content"][:MAX_TITULO]})
+    herramientas = sum(evento["type"] == "tool_call" for evento in _eventos)
+    datos["turns"].append({"question": mensajes[-1]["content"], "answer": respuesta, "error": error,
+                           "tools": herramientas, "events": _eventos})
+    historial = mensajes + ([{"role": "assistant", "content": respuesta}] if respuesta is not None else [])
+    datos.update(branch=branch, generation=generacion, updated=ahora, messages=historial)
+    archivos.escribir_json(ruta, datos)
 
 
 def main() -> int:
     mensajes: list[dict[str, str]] = []
-    branch, generacion = almacen.RAMA_PRINCIPAL, None
+    branch, generacion, conversacion = almacen.RAMA_PRINCIPAL, None, None
+    respuesta: str | None = None
+    error: str | None = None
     try:
         entrada = json.loads(sys.stdin.read() or "{}")
         if not isinstance(entrada, dict):
             raise EntradaInvalida("la entrada debe ser un objeto JSON")
+        conversacion = validar_conversacion(entrada)
         mensajes, branch, pedida = validar(entrada)
         generacion = resolver_generacion(branch, pedida)
         spec = almacen.cargar_spec(branch, generacion)
@@ -104,15 +135,17 @@ def main() -> int:
         emitir({"type": "start", "generation": spec.generation, "branch": branch, "topology": spec.topology,
                 "sub_agents": spec.sub_agents, "tools": spec.tools_enabled, "playbooks": len(spec.playbooks)})
         resultado = construir_agente(spec)(mensajes, emitir)
+        respuesta = resultado.final_answer
         emitir({"type": "final", "agent": f"gen_{spec.generation}", "text": resultado.final_answer,
                 "tokens": resultado.tokens, "cost_usd": round(resultado.cost_usd, 6),
                 "steps": len(resultado.steps), "exhausted": resultado.exhausted})
     except Exception as e:  # frontera: el cliente de la demo debe ver el motivo, no un stream cortado
         mensaje = str(e) if isinstance(e, (EntradaInvalida, json.JSONDecodeError)) else f"{type(e).__name__}: {e}"
+        error = mensaje
         emitir({"type": "error", "message": mensaje})
     finally:
         if mensajes:
-            guardar_conversacion(mensajes, branch, generacion)
+            guardar_conversacion(mensajes, branch, generacion, conversacion, respuesta, error)
     return 0  # el error ya se emitió como evento; un código != 0 queda para fallos que no llegaron aquí
 
 
