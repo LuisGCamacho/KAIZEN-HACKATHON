@@ -1,0 +1,25 @@
+{
+  "generation": 0,
+  "branch": "main",
+  "parent": null,
+  "system_prompt_path": "prompts/gen_0.md",
+  "topology": "single_react",
+  "tools_enabled": [
+    "buscar_inventario",
+    "calcular_enganche",
+    "calcular_financiamiento",
+    "verificar_disponibilidad_entrega",
+    "politica_garantia",
+    "agendar_inspeccion",
+    "consultar_tramite",
+    "escalar_humano"
+  ],
+  "playbooks": [],
+  "sub_agents": [],
+  "distiller_prompt_version": 0,
+  "rubric_version": 0,
+  "rationale": "Línea base escrita a mano, mediocre a propósito para dejar margen de mejora.",
+  "clusters": {},
+  "new_artifacts": [],
+  "topology_note": ""
+}
