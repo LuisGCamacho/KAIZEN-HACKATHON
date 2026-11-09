@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { RunProgress } from "./run-progress";
 import { RunButton, SidebarBudget } from "./sidebar-status";
 
 const navigation = [
@@ -53,6 +54,7 @@ export function AppShell({ active, title, description, section, children }: {
       <header className="page-header"><div>
         <p className="eyebrow">{section}</p><h1 className="page-title">{title}</h1><p className="page-description">{description}</p>
       </div></header>
+      <RunProgress />
       {children}
     </div></main>
   </div>;

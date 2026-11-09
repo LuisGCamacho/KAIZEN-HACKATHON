@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { usd } from "../lib/format";
 import { useJson } from "../lib/use-json";
 import { useRun, type Comando } from "../lib/use-run";
@@ -14,14 +16,29 @@ export function RunButton() {
   const { lanzar, enviando, aviso } = useRun();
 
   const corriendo = progreso.status === "ready" && progreso.data.corriendo;
-  const tieneMain = reportes.status === "ready" && reportes.data.generations.some(g => g.branch === "main");
-  const comando: Comando = tieneMain ? "next" : "gen0";
+  const [confirmando, setConfirmando] = useState(false);
+  const generacionesMain = reportes.status === "ready"
+    ? reportes.data.generations.filter(g => g.branch === "main").map(g => g.generation) : [];
+  const ultima = generacionesMain.length ? Math.max(...generacionesMain) : null;
+  const comando: Comando = ultima === null ? "gen0" : "next";
+  // La acción gasta créditos y tarda minutos: se explica qué va a pasar antes de lanzarla
+  const explicacion = ultima === null
+    ? "Se evaluará la generación 0 (el agente escrito a mano) en las tareas de la corrida."
+    : `Se destilará la generación ${ultima + 1} a partir de los fallos de la ${ultima} y se evaluará en las mismas tareas. Tarda unos 10 minutos y gasta créditos de la cuenta.`;
 
   return <>
-    <button className="new-run-button" type="button" disabled={enviando || corriendo} onClick={() => lanzar(comando)}
-      title={comando === "gen0" ? "Evalúa la generación 0 en main" : "Destila y evalúa la siguiente generación de main"}>
+    <button className="new-run-button" type="button" disabled={enviando || corriendo} onClick={() => setConfirmando(true)}
+      aria-expanded={confirmando}>
       <span aria-hidden="true">+</span> {comando === "gen0" ? "Evaluar gen 0" : "Nueva generación"}
     </button>
+    {confirmando && !corriendo && <div className="run-confirm" role="dialog" aria-label="Confirmar corrida">
+      <p>{explicacion}</p>
+      <div className="run-confirm-acciones">
+        <button className="btn btn-primary" type="button" disabled={enviando}
+          onClick={() => { setConfirmando(false); void lanzar(comando); }}>Lanzar</button>
+        <button className="btn" type="button" onClick={() => setConfirmando(false)}>Cancelar</button>
+      </div>
+    </div>}
     {aviso && <p className="sidebar-footnote" role="status">{aviso}</p>}
   </>;
 }
