@@ -16,14 +16,15 @@ import time
 import openai
 from dotenv import load_dotenv
 
-from core.paths import ENV_FILE, RUNS
+from core import archivos
+from core.paths import ENV_FILE, SPEND
 
 load_dotenv(ENV_FILE)
 
 MODELO_AGENTE = os.getenv("MODEL_AGENT", "gpt-4.1-mini")  # el agente evaluado, el juez y el trato
 MODELO_INTELIGENTE = os.getenv("MODEL_SMART", "gpt-4.1")  # destilador, síntesis de tools y meta-loop
 PRESUPUESTO_USD = float(os.getenv("BUDGET_USD", "20"))
-ARCHIVO_GASTO = RUNS / "spend.json"  # contrato: {"usd": float}
+ARCHIVO_GASTO = SPEND  # contrato: {"usd": float}
 
 # USD por millón de tokens (entrada, salida). PRICE_<MODELO>=entrada,salida en .env sobrescribe o agrega.
 PRECIOS_POR_MILLON = {
@@ -50,28 +51,29 @@ class BudgetExceeded(RuntimeError):
 
 
 class _ContadorGasto:
-    """Gasto acumulado entre corridas. Es seguro entre hilos porque la evaluación corre episodios en paralelo."""
+    """Gasto acumulado entre corridas, guardado en spend.json.
+
+    La fuente de verdad es el archivo, no la memoria: run.py y cada conversación de live.py son procesos
+    distintos que gastan a la vez. Con un total en memoria por proceso, el último en escribir borraba lo que
+    sumaron los demás (4 procesos que gastaron 2.00 USD dejaban registrado 0.50) y el tope no cortaba a tiempo.
+    Por eso cada suma relee el archivo bajo un candado entre procesos.
+    """
 
     def __init__(self) -> None:
-        """Arranca desde el gasto guardado, para que el presupuesto cuente todas las corridas, no solo esta."""
-        self._candado = threading.Lock()
-        self.total_usd = self._leer_total()
+        self._candado = threading.Lock()  # la evaluación corre episodios en varios hilos del mismo proceso
 
-    @staticmethod
-    def _leer_total() -> float:
+    @property
+    def total_usd(self) -> float:
         """Gasto acumulado en spend.json; 0 si todavía no se ha gastado nada."""
-        if not ARCHIVO_GASTO.exists():
-            return 0.0
-        return float(json.loads(ARCHIVO_GASTO.read_text(encoding="utf-8"))["usd"])
+        return float(archivos.leer_json(ARCHIVO_GASTO, {"usd": 0.0})["usd"])
 
     def sumar(self, costo_usd: float) -> None:
-        """Suma el costo de una llamada al total y lo guarda en spend.json."""
-        with self._candado:
-            self.total_usd += costo_usd
-            # Escritura atómica: un corte a mitad de escritura no deja el archivo ilegible
-            temporal = ARCHIVO_GASTO.with_suffix(".json.tmp")
-            temporal.write_text(json.dumps({"usd": round(self.total_usd, 6)}), encoding="utf-8")
-            temporal.replace(ARCHIVO_GASTO)
+        """Suma el costo de una llamada al total guardado, sin perder lo que sumen otros procesos."""
+        if costo_usd == 0:
+            return
+        with self._candado, archivos.candado_de_archivo(ARCHIVO_GASTO):
+            # Sin redondeo: en miles de llamadas el error de redondear cada suma se acumularía
+            archivos.escribir_json(ARCHIVO_GASTO, {"usd": self.total_usd + costo_usd})
 
 
 CONTADOR_GASTO = _ContadorGasto()

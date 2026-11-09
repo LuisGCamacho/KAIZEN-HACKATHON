@@ -33,7 +33,9 @@ def test_modelo_local_no_cuesta(monkeypatch):
     assert llm.precio_por_millon("gpt-4.1") == (0.0, 0.0)
 
 
-def test_corta_al_alcanzar_el_presupuesto(monkeypatch):
-    monkeypatch.setattr(llm.CONTADOR_GASTO, "total_usd", llm.PRESUPUESTO_USD)
+def test_corta_al_alcanzar_el_presupuesto(monkeypatch, tmp_path):
+    # El gasto se lee de spend.json (compartido entre procesos), no de un atributo en memoria
+    monkeypatch.setattr(llm, "ARCHIVO_GASTO", tmp_path / "spend.json")
+    (tmp_path / "spend.json").write_text(f'{{"usd": {llm.PRESUPUESTO_USD}}}', encoding="utf-8")
     with pytest.raises(llm.BudgetExceeded):
         llm.chat([{"role": "user", "content": "hola"}])  # se corta antes de crear el cliente o llamar a la API

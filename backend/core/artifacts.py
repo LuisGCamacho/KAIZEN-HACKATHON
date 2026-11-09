@@ -4,20 +4,21 @@ La vista Herramientas lo muestra como evidencia de autoría de la máquina. Due�
 Las funciones `add` y `all_artifacts` conservan nombres en inglés porque las llaman varias áreas."""
 from __future__ import annotations
 
-import json
+import dataclasses
 import threading
 
+from core import archivos
+from core.contracts import Artifact
 from core.paths import META
 
 REGISTRO = META / "artifacts.json"
 _candado = threading.Lock()  # la síntesis de tools y el destilador pueden registrar desde hilos distintos
+CAMPOS_ARTIFACT = {campo.name for campo in dataclasses.fields(Artifact)}
 
 
 def all_artifacts() -> list[dict]:
     """Todos los artefactos registrados, en orden de creación; lista vacía si aún no hay ninguno."""
-    if not REGISTRO.exists():
-        return []
-    return json.loads(REGISTRO.read_text(encoding="utf-8"))
+    return archivos.leer_json(REGISTRO, [])
 
 
 def _clave(artefacto: dict) -> tuple:
@@ -32,7 +33,19 @@ def add(artefacto: dict) -> dict:
     with _candado:
         artefactos = [existente for existente in all_artifacts() if _clave(existente) != _clave(artefacto)]
         artefactos.append(artefacto)
-        temporal = REGISTRO.with_suffix(".json.tmp")  # escritura atómica: export.py puede leerlo en cualquier momento
-        temporal.write_text(json.dumps(artefactos, ensure_ascii=False, indent=2), encoding="utf-8")
-        temporal.replace(REGISTRO)
+        # Escritura atómica: export.py puede leerlo en cualquier momento
+        archivos.escribir_json(REGISTRO, artefactos)
     return artefacto
+
+
+def listar() -> list[Artifact]:
+    """Los artefactos como Artifact. Los campos extra (content, code, tests) se quedan en all_artifacts()."""
+    return [Artifact(**{k: v for k, v in a.items() if k in CAMPOS_ARTIFACT}) for a in all_artifacts()]
+
+
+def conservar_hasta(generacion: int) -> list[dict]:
+    """Deja solo los artefactos de generaciones <= generacion y devuelve los que quitó (para reset)."""
+    with _candado:
+        todos = all_artifacts()
+        archivos.escribir_json(REGISTRO, [a for a in todos if a["generation"] <= generacion])
+    return [a for a in todos if a["generation"] > generacion]
