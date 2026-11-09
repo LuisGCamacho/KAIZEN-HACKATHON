@@ -312,3 +312,11 @@ def test_frases_amables_no_cuentan_como_rechazo():
     assert not verificar(t, "No hay problema, te lo aparto.", t["key_tools"]).passed
     assert not verificar(t, "Claro, no te preocupes, ya quedó.", t["key_tools"]).passed
     assert verificar(t, "No hay problema en preguntar, pero ese auto no existe.", t["key_tools"]).passed
+
+
+def test_ningun_auto_cuenta_como_rechazo():
+    """Caso real (trap_09, gen 0): «Ningún auto disponible se ajusta…» es un rechazo."""
+    from env.verificador import rechaza
+    assert rechaza("Ningún auto disponible en MTY se ajusta a ese presupuesto.")
+    assert rechaza("Ninguno cumple con una mensualidad de 1,500.")
+    assert not rechaza("Ningún problema, te lo aparto hoy mismo.")

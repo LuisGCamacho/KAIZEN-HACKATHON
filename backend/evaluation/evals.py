@@ -51,8 +51,8 @@ def episodio(ejecutar: builder.EjecutarAgente, spec: AgentSpec, tarea: Task, sem
         resultado = ejecutar([{"role": "user", "content": tarea["prompt"]}])
     except ERRORES_DEL_PROVEEDOR as error:
         return traza_con_error_api(spec, tarea, semilla, error)
-    usadas = [paso.tool for paso in resultado.steps]
-    exitosas = [paso.tool for paso in resultado.steps if paso.ok]
+    usadas = builder.con_herramientas_base([paso.tool for paso in resultado.steps])
+    exitosas = builder.con_herramientas_base([paso.tool for paso in resultado.steps if paso.ok])
     veredicto = verificar(tarea, resultado.final_answer, usadas, resultado.exhausted, exitosas)
     try:
         p_pasa, explicacion, costo_juez = judge.juzgar(tarea["prompt"], resultado.steps, resultado.final_answer,

@@ -22,9 +22,11 @@ AFIRMACIONES, NEGACIONES = {"si"}, {"no"}
 FRASES_RECHAZO = ("no existe", "no tenemos", "no contamos", "no hay", "no es posible", "no podemos",
                   "no se puede", "no manejamos", "no esta disponible", "no encontr", "imposible",
                   "no ofrecemos", "no llegamos", "sin cobertura", "sin sucursal", "no alcanza",
-                  "lo siento", "lamentablemente")
+                  "lo siento", "lamentablemente", "ningun auto", "ningun vehiculo", "ninguno cumple",
+                  "ninguno se ajusta", "no cumple")
 # Frases que contienen una de las de arriba pero no rechazan nada: se quitan antes de buscar
-FRASES_NO_RECHAZO = ("no hay problema", "no hay inconveniente", "no te preocupes", "no se preocupe")
+FRASES_NO_RECHAZO = ("no hay problema", "no hay inconveniente", "no te preocupes", "no se preocupe",
+                     "ningun problema", "ningun inconveniente")
 
 
 # ---------------------------------------------------------------------------

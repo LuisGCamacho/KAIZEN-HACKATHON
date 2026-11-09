@@ -122,3 +122,31 @@ def test_spec_de_gen_0_es_valida():
     assert spec.system_prompt_path == "prompts/gen_0.md"
     assert spec.tools_enabled == BASE_TOOLS
     assert spec.playbooks == []
+
+
+def test_tool_generada_cuenta_como_las_tools_base_que_usa(tmp_path, monkeypatch):
+    """Una tool generada que llama a buscar_inventario da el mismo sustento que llamarla directo."""
+    from agents import builder
+    from env.tareas import POR_ID_TAREA
+    from env.verificador import verificar
+    (tmp_path / "presupuesto_mensual.py").write_text(
+        "from env.tools import buscar_inventario, calcular_financiamiento\n"
+        "def presupuesto_mensual(ciudad):\n"
+        "    autos = buscar_inventario(ciudad=ciudad)\n"
+        "    return [calcular_financiamiento(a['precio'], 0, 48) for a in autos['autos']]\n", encoding="utf-8")
+    monkeypatch.setattr(builder, "TOOLS_GENERADAS", tmp_path)
+    assert builder.herramientas_base_que_usa("presupuesto_mensual") == {"buscar_inventario", "calcular_financiamiento"}
+    assert builder.con_herramientas_base(["presupuesto_mensual"]) == ["presupuesto_mensual", "buscar_inventario",
+                                                                      "calcular_financiamiento"]
+    # trap_09 de gen 3: rechazó bien pero solo con la tool generada; antes contaba como "sin sustento"
+    tarea = POR_ID_TAREA["trap_09"]
+    respuesta = "No hay autos en Monterrey que cumplan con ese presupuesto; no es posible apartar ninguno."
+    assert not verificar(tarea, respuesta, ["presupuesto_mensual"], False, ["presupuesto_mensual"]).passed
+    expandidas = builder.con_herramientas_base(["presupuesto_mensual"])
+    assert verificar(tarea, respuesta, expandidas, False, expandidas).passed
+
+
+def test_tool_base_o_inexistente_no_se_expande():
+    from agents import builder
+    assert builder.con_herramientas_base(["buscar_inventario"]) == ["buscar_inventario"]
+    assert builder.con_herramientas_base(["no_existe_esta_tool"]) == ["no_existe_esta_tool"]

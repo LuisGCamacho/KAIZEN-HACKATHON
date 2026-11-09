@@ -8,6 +8,7 @@ tutorial porque las llaman módulos de otras áreas.
 """
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 from pathlib import Path
@@ -81,6 +82,34 @@ def cargar_herramienta_generada(nombre: str) -> Herramienta:
 def es_herramienta_generada(nombre: str) -> bool:
     """True si existe una tool generada con ese nombre: necesita su código (.py) y su esquema (.json)."""
     return (TOOLS_GENERADAS / f"{nombre}.py").exists() and (TOOLS_GENERADAS / f"{nombre}.json").exists()
+
+
+def herramientas_base_que_usa(nombre: str) -> set[str]:
+    """Tools base que llama por dentro una tool generada, por análisis estático de su código (no se ejecuta)."""
+    ruta_codigo = TOOLS_GENERADAS / f"{nombre}.py"
+    if not ruta_codigo.exists():
+        return set()
+    usadas = set()
+    for nodo in ast.walk(ast.parse(ruta_codigo.read_text(encoding="utf-8"))):
+        if isinstance(nodo, ast.Call):
+            llamada = nodo.func
+            nombre_llamada = llamada.id if isinstance(llamada, ast.Name) else getattr(llamada, "attr", None)
+            if nombre_llamada in FUNCIONES:
+                usadas.add(nombre_llamada)
+    return usadas
+
+
+def con_herramientas_base(herramientas: list[str]) -> list[str]:
+    """Agrega, tras cada tool generada, las tools base que usa por dentro.
+
+    El verificador exige haber consultado una tool clave de la tarea (respuestas con sustento). Una tool
+    generada que llama a esa tool clave es igual de fundamentada; sin esta expansión el sistema se castigaba
+    por crear herramientas (p. ej. trap_09 rechazado bien en gen 3, pero contado como "sin sustento")."""
+    expandidas = list(herramientas)
+    for nombre in herramientas:
+        if nombre not in FUNCIONES:
+            expandidas += sorted(herramientas_base_que_usa(nombre) - set(expandidas))
+    return expandidas
 
 
 def caja_de_herramientas(spec: AgentSpec) -> dict[str, Herramienta]:
