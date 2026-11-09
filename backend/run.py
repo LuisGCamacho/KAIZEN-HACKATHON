@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from core import almacen, llm, paths, progress  # noqa: E402
+from core import almacen, archivos, llm, paths, progress  # noqa: E402
 from core.contracts import BASE_TOOLS, AgentSpec  # noqa: E402
 
 SALIDA_OK, SALIDA_ERROR, SALIDA_OCUPADO, SALIDA_PRESUPUESTO = 0, 1, 3, 4
@@ -80,49 +80,39 @@ def _exportar() -> list[str]:
 # Lock: una sola corrida a la vez
 # ---------------------------------------------------------------------------
 
-def proceso_vivo(pid: int) -> bool:
-    """True si el proceso existe. En Windows no se usa os.kill: con señal 0 termina el proceso."""
-    if os.name == "nt":
-        import ctypes
-        consulta_limitada, sigue_activo = 0x1000, 259  # PROCESS_QUERY_LIMITED_INFORMATION, STILL_ACTIVE
-        handle = ctypes.windll.kernel32.OpenProcess(consulta_limitada, False, pid)
-        if not handle:
-            return False
-        codigo = ctypes.c_ulong()
-        ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(codigo))
-        ctypes.windll.kernel32.CloseHandle(handle)
-        return codigo.value == sigue_activo
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:  # existe, pero es de otro usuario
-        return True
-    return True
+_candado_corrida = None  # archivo con el candado del sistema, tomado mientras dura la corrida
 
 
 def tomar_lock() -> None:
-    """Crea data/runs/.lock con el PID. Un lock de un proceso muerto (reinicio, crash) se reemplaza.
+    """Toma el candado de corrida del sistema operativo y escribe .lock con el PID para la web.
 
-    La creación es atómica (O_EXCL): si dos run.py arrancan a la vez, solo uno obtiene el lock.
+    El candado lo mantiene el sistema, no el archivo: si run.py muere (crash, reinicio del servidor) se
+    libera solo, y no hay ventana entre revisar y crear en la que dos corridas puedan entrar a la vez.
     """
-    if paths.LOCK.exists():
-        contenido = paths.LOCK.read_text(encoding="utf-8").strip()
-        if contenido.isdigit() and proceso_vivo(int(contenido)):
-            raise CorridaOcupada(f"Ya hay una corrida en curso (PID {contenido})")
-        progress.linea(f"lock huérfano de PID {contenido or '?'}: se reemplaza")
-        paths.LOCK.unlink(missing_ok=True)
-    try:
-        descriptor = os.open(paths.LOCK, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-    except FileExistsError:
-        raise CorridaOcupada("Otra corrida tomó el lock al mismo tiempo") from None
-    with os.fdopen(descriptor, "w", encoding="utf-8") as lock:
-        lock.write(str(os.getpid()))
+    global _candado_corrida
+    candado = archivos.intentar_candado(paths.CANDADO_CORRIDA)
+    if candado is None:
+        raise CorridaOcupada("Ya hay una corrida en curso")
+    if paths.LOCK.exists():  # con el candado tomado, cualquier .lock previo es de una corrida que murió
+        progress.linea("lock huérfano de una corrida anterior: se reemplaza")
+    _candado_corrida = candado
+    escribir_texto_atomico(paths.LOCK, str(os.getpid()))
 
 
 def soltar_lock() -> None:
-    if paths.LOCK.exists() and paths.LOCK.read_text(encoding="utf-8").strip() == str(os.getpid()):
-        paths.LOCK.unlink()
+    global _candado_corrida
+    if _candado_corrida is None:
+        return
+    paths.LOCK.unlink(missing_ok=True)
+    archivos.soltar_candado(_candado_corrida)
+    _candado_corrida = None
+
+
+def escribir_texto_atomico(ruta: Path, texto: str) -> None:
+    """Así la web nunca lee un .lock vacío a medio escribir."""
+    temporal = ruta.with_name(f"{ruta.name}.{os.getpid()}.tmp")
+    temporal.write_text(texto, encoding="utf-8")
+    os.replace(temporal, ruta)
 
 
 # ---------------------------------------------------------------------------

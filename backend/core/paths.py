@@ -19,6 +19,7 @@ TOOLS_RECHAZADAS = DATA / "tools" / "rejected"  # tools que no pasaron, como evi
 WEB_DATA = REPO / "web" / "public" / "data"  # JSON que lee la interfaz
 
 LOCK = RUNS / ".lock"  # existe mientras hay una corrida; guarda su PID. /api/run lo revisa
+CANDADO_CORRIDA = RUNS / ".corrida.candado"  # candado del sistema que run.py mantiene durante la corrida
 SPEND = RUNS / "spend.json"  # contrato: {"usd": float}, el gasto real acumulado
 REGISTRO = RUNS / "registro.log"  # copia en disco de las líneas de progress.json
 PROGRESS = WEB_DATA / "progress.json"  # estado en vivo de la corrida (core/progress.py)

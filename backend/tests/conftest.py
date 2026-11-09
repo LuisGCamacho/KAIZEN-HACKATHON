@@ -29,6 +29,7 @@ def datos(tmp_path, monkeypatch):
         monkeypatch.setattr(paths, nombre, nuevas[nombre])
         nuevas[nombre].mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(paths, "LOCK", nuevas["RUNS"] / ".lock")
+    monkeypatch.setattr(paths, "CANDADO_CORRIDA", nuevas["RUNS"] / ".corrida.candado")
     monkeypatch.setattr(paths, "SPEND", nuevas["RUNS"] / "spend.json")
     monkeypatch.setattr(paths, "REGISTRO", nuevas["RUNS"] / "registro.log")
     monkeypatch.setattr(paths, "PROGRESS", nuevas["WEB_DATA"] / "progress.json")

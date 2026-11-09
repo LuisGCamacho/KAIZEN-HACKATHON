@@ -166,3 +166,19 @@ def test_escrituras_simultaneas_de_varios_procesos(tmp_path):
     assert all(h.wait(timeout=60) == 0 for h in hijos)
     assert json.loads(destino.read_text(encoding="utf-8")) == {"i": 99}
     assert list(tmp_path.glob("*.tmp")) == []
+
+
+def test_tokens_en_cache_cuestan_menos(monkeypatch):
+    """gpt-4.1-mini: 1M de prompt con 800k en caché = 200k × 0.40 + 800k × 0.10 = 0.16 USD (sin caché: 0.40)."""
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+    uso = SimpleNamespace(prompt_tokens=1_000_000, completion_tokens=0,
+                          prompt_tokens_details=SimpleNamespace(cached_tokens=800_000))
+    assert llm.costo_usd("gpt-4.1-mini", uso) == pytest.approx(0.16)
+
+
+def test_cache_de_modelo_desconocido_se_cobra_como_entrada(monkeypatch):
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+    assert llm.precio_cache_por_millon("modelo-inexistente") == llm.PRECIO_MODELO_DESCONOCIDO[0]
+    monkeypatch.setenv("PRICE_MI_MODELO", "1,2,0.25")
+    assert llm.precio_por_millon("mi-modelo") == (1.0, 2.0)
+    assert llm.precio_cache_por_millon("mi-modelo") == 0.25
