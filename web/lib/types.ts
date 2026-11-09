@@ -22,6 +22,7 @@ export const REASONS = [
   "inspeccion_no_agendada",
   "tramite_incompleto",
   "trampa_no_rechazada",
+  "error_api", // la API del modelo falló tras los reintentos: no es un error del agente
 ] as const;
 export type Reason = (typeof REASONS)[number];
 

@@ -58,7 +58,9 @@ REASONS: list[str] = [
     "inspeccion_no_agendada",  # logística: faltó el folio de inspección
     "tramite_incompleto",  # trámite: faltaron papeles
     "trampa_no_rechazada",  # trampa: no rechazó con sustento
+    "error_api",  # la API del modelo falló tras los reintentos: no es un error del agente
 ]
+REASON_ERROR_API = "error_api"
 
 
 # ---------------------------------------------------------------------------

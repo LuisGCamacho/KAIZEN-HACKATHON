@@ -11,14 +11,19 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import openai
+
 from agents import builder
-from core import almacen, progress
-from core.contracts import AgentSpec, GenerationReport, Task, Trace
+from core import almacen, progress, proveedor_codex
+from core.contracts import REASON_ERROR_API, AgentSpec, GenerationReport, Task, Trace, Verdict
 from env.tareas import TAREAS
 from env.verificador import verificar
 from evaluation import judge
 
 WORKERS = int(os.getenv("KAIZEN_WORKERS", "8"))  # episodios en paralelo; 1 con un modelo local
+# Lo que llm.chat() deja subir cuando el proveedor sigue fallando tras los reintentos (API de OpenAI o CLI de
+# Codex). El límite de uso de Codex no está aquí: llm.py lo convierte en BudgetExceeded y corta la corrida
+ERRORES_DEL_PROVEEDOR = (openai.APIError, proveedor_codex.FalloTransitorio, proveedor_codex.HerramientaProhibida)
 HERRAMIENTA_ESCALAR = "escalar_humano"
 DECIMALES = 4  # métricas en fracción de 0 a 1
 DECIMALES_USD = 6  # una generación del smoke cuesta centavos: con menos decimales se vería 0
@@ -27,14 +32,33 @@ DECIMALES_USD = 6  # una generación del smoke cuesta centavos: con menos decima
 # ---------------------------------------------------------------------------
 # Correr una generación
 # ---------------------------------------------------------------------------
+def traza_con_error_api(spec: AgentSpec, tarea: Task, semilla: int, error: Exception) -> Trace:
+    """Episodio que no llegó a terminar porque el proveedor (API o Codex) falló tras los reintentos. Cuenta como fallo con la
+    etiqueta error_api, sin pasos ni nota del juez. Lo que alcanzó a gastar ya quedó sumado en spend.json."""
+    progress.linea(f"{tarea['id']}: error de API tras los reintentos ({type(error).__name__}: {error})")
+    progress.tarea_hecha(tarea["id"], False, REASON_ERROR_API)
+    return Trace(task_id=tarea["id"], family=tarea["family"], generation=spec.generation, branch=spec.branch,
+                 seed=semilla, split=tarea["split"], prompt=tarea["prompt"], expected=tarea["expected"],
+                 steps=[], final_answer="", verdict=Verdict(False, REASON_ERROR_API), tokens=0, cost_usd=0.0)
+
+
 def episodio(ejecutar: builder.EjecutarAgente, spec: AgentSpec, tarea: Task, semilla: int) -> Trace:
-    """Un episodio completo: el agente responde, el verificador califica y el juez opina."""
-    resultado = ejecutar([{"role": "user", "content": tarea["prompt"]}])
+    """Un episodio completo: el agente responde, el verificador califica y el juez opina.
+
+    Un error del proveedor en un episodio no tumba la generación: se registra como fallo y siguen los demás.
+    BudgetExceeded sí se propaga, porque sin presupuesto hay que detener toda la corrida."""
+    try:
+        resultado = ejecutar([{"role": "user", "content": tarea["prompt"]}])
+    except ERRORES_DEL_PROVEEDOR as error:
+        return traza_con_error_api(spec, tarea, semilla, error)
     usadas = [paso.tool for paso in resultado.steps]
     exitosas = [paso.tool for paso in resultado.steps if paso.ok]
     veredicto = verificar(tarea, resultado.final_answer, usadas, resultado.exhausted, exitosas)
-    p_pasa, explicacion, costo_juez = judge.juzgar(tarea["prompt"], resultado.steps, resultado.final_answer,
-                                                   spec.rubric_version)
+    try:
+        p_pasa, explicacion, costo_juez = judge.juzgar(tarea["prompt"], resultado.steps, resultado.final_answer,
+                                                       spec.rubric_version)
+    except ERRORES_DEL_PROVEEDOR:  # sin nota del juez el episodio sigue valiendo: la métrica es del verificador
+        p_pasa, explicacion, costo_juez = None, None, 0.0
     veredicto.judge_p_pass, veredicto.judge_explanation = p_pasa, explicacion
     progress.tarea_hecha(tarea["id"], veredicto.passed, veredicto.reason)
     return Trace(task_id=tarea["id"], family=tarea["family"], generation=spec.generation, branch=spec.branch,
@@ -126,6 +150,7 @@ def report(spec: AgentSpec, semilla: int, trazas: list[Trace]) -> GenerationRepo
     resueltas = sum(t.verdict.passed for t in trazas)
     costo = sum(t.cost_usd for t in trazas)
     padre = heldout_del_padre(spec)
+    errores_api = sum(t.verdict.reason == REASON_ERROR_API for t in trazas)
     return GenerationReport(
         generation=spec.generation, branch=spec.branch, seed=semilla,
         train_success=round(tasa_de_exito([t for t in trazas if t.split == "train"]), DECIMALES),
@@ -139,5 +164,7 @@ def report(spec: AgentSpec, semilla: int, trazas: list[Trace]) -> GenerationRepo
         cost_per_solved=round(costo / resueltas, DECIMALES_USD) if resueltas else None,
         delta_vs_parent=round(heldout - padre, DECIMALES) if padre is not None else 0.0,
         new_artifacts=list(spec.new_artifacts),
+        # El éxito cuenta estos episodios como fallos; la nota avisa que no fueron errores del agente
+        note=f"{errores_api} episodios con error de API" if errores_api else "",
         tone=redondear(media_o_none([t.verdict.judge_tone for t in trazas])),
     )
