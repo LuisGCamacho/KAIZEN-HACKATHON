@@ -81,6 +81,14 @@ def test_fallos_de_train_excluye_heldout_y_aciertos():
     assert all(fallo.split == "train" and not fallo.verdict.passed for fallo in fallos)
 
 
+def test_fallos_de_train_excluye_errores_de_api():
+    """Un error del proveedor no es una causa que el agente pueda aprender a evitar."""
+    trazas = [*trazas_de_prueba(), traza("train", "error_api"), traza("train", "error_api")]
+    fallos = distiller.fallos_de_train(trazas)
+    assert len(fallos) == 5
+    assert all(fallo.verdict.reason != "error_api" for fallo in fallos)
+
+
 def test_el_destilador_nunca_ve_heldout(entorno):
     distiller.distill(spec_gen_0(), trazas_de_prueba(), "main", 0, 0, log=lambda _texto: None)
     assert entorno.textos_enviados, "el destilador debió consultar al modelo"

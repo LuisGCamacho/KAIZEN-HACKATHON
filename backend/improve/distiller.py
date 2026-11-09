@@ -14,7 +14,7 @@ from collections import Counter
 from typing import Callable
 
 from core import artifacts, llm, versions
-from core.contracts import AgentSpec, Artifact, Trace
+from core.contracts import REASON_ERROR_API, AgentSpec, Artifact, Trace
 from core.paths import DATA, PLAYBOOKS, PROMPTS, rel
 from improve import tool_synth
 
@@ -37,8 +37,12 @@ Registro = Callable[[str], None]
 
 
 def fallos_de_train(trazas: list[Trace]) -> list[Trace]:
-    """Solo los episodios fallidos del split de entrenamiento. Esta es la única puerta de entrada al destilador."""
-    return [traza for traza in trazas if traza.split == SPLIT_ENTRENAMIENTO and not traza.verdict.passed]
+    """Solo los episodios fallidos del split de entrenamiento. Esta es la única puerta de entrada al destilador.
+
+    Excluye error_api: es una falla del proveedor del modelo, no del agente. Si entrara, podría quedar entre
+    las causas más frecuentes y el destilador escribiría playbooks y tools para "evitar errores de API"."""
+    return [traza for traza in trazas if traza.split == SPLIT_ENTRENAMIENTO and not traza.verdict.passed
+            and traza.verdict.reason != REASON_ERROR_API]
 
 
 def sufijo_de_rama(rama: str) -> str:
