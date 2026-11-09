@@ -53,6 +53,10 @@ export function EvolutionView({ reports, artifacts, progress, generar }: {
           <div className="overview-actions">
             <button className="btn" type="button" disabled={rows.length === 0}
               onClick={() => descargar(`kaizen-${branch}-generaciones.csv`, generacionesACsv(rows))}>Exportar CSV</button>
+            {/* El Excel lo arma el backend (con gráficas): un enlace basta para que el navegador lo descargue */}
+            {rows.length > 0 && branch
+              ? <a className="btn" href={`/api/excel?branch=${encodeURIComponent(branch)}`} download>Exportar Excel</a>
+              : <button className="btn" type="button" disabled>Exportar Excel</button>}
             <button className="btn btn-primary" type="button" disabled={!generar || generar.deshabilitado}
               onClick={generar?.lanzar} aria-describedby="actions-note">Generar siguiente</button>
             <span className="action-note" id="actions-note" role="status">
