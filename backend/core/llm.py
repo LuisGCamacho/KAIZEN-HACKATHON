@@ -16,7 +16,7 @@ import time
 import openai
 from dotenv import load_dotenv
 
-from core import archivos
+from core import archivos, proveedor_codex
 from core.paths import ENV_FILE, SPEND
 
 load_dotenv(ENV_FILE)
@@ -24,6 +24,10 @@ load_dotenv(ENV_FILE)
 MODELO_AGENTE = os.getenv("MODEL_AGENT", "gpt-4.1-mini")  # el agente evaluado, el juez y el trato
 MODELO_INTELIGENTE = os.getenv("MODEL_SMART", "gpt-4.1")  # destilador, síntesis de tools y meta-loop
 PRESUPUESTO_USD = float(os.getenv("BUDGET_USD", "20"))
+# "openai" (API de pago, por defecto) o "codex" (CLI oficial con una cuenta de ChatGPT: core/proveedor_codex.py)
+PROVEEDOR = os.getenv("KAIZEN_PROVIDER", "openai").strip().lower()
+# Con Codex no hay USD: el tope es de tokens. 0 = sin tope (no recomendado: los créditos de la cuenta se agotan)
+PRESUPUESTO_TOKENS_CODEX = int(os.getenv("CODEX_MAX_TOKENS", "0"))
 ARCHIVO_GASTO = SPEND  # contrato: {"usd": float}
 
 # USD por millón de tokens (entrada, salida). PRICE_<MODELO>=entrada,salida[,cache] en .env sobrescribe o agrega.
@@ -76,13 +80,26 @@ class _ContadorGasto:
         """Gasto acumulado en spend.json; 0 si todavía no se ha gastado nada."""
         return float(archivos.leer_json(ARCHIVO_GASTO, {"usd": 0.0})["usd"])
 
+    @property
+    def tokens_codex(self) -> int:
+        """Tokens gastados con el proveedor Codex (campo agregado a spend.json; 0 si nunca se usó)."""
+        return int(archivos.leer_json(ARCHIVO_GASTO, {}).get("codex_tokens", 0))
+
+    def sumar_tokens_codex(self, tokens: int) -> None:
+        if tokens == 0:
+            return
+        with self._candado, archivos.candado_de_archivo(ARCHIVO_GASTO):
+            datos = archivos.leer_json(ARCHIVO_GASTO, {"usd": 0.0})
+            archivos.escribir_json(ARCHIVO_GASTO, {**datos, "codex_tokens": datos.get("codex_tokens", 0) + tokens})
+
     def sumar(self, costo_usd: float) -> None:
         """Suma el costo de una llamada al total guardado, sin perder lo que sumen otros procesos."""
         if costo_usd == 0:
             return
         with self._candado, archivos.candado_de_archivo(ARCHIVO_GASTO):
             # Sin redondeo: en miles de llamadas el error de redondear cada suma se acumularía
-            archivos.escribir_json(ARCHIVO_GASTO, {"usd": self.total_usd + costo_usd})
+            datos = archivos.leer_json(ARCHIVO_GASTO, {"usd": 0.0})
+            archivos.escribir_json(ARCHIVO_GASTO, {**datos, "usd": float(datos["usd"]) + costo_usd})
 
 
 CONTADOR_GASTO = _ContadorGasto()
@@ -152,6 +169,8 @@ def revisar_presupuesto() -> None:
     """Lanza BudgetExceeded si el gasto acumulado ya llegó a BUDGET_USD. Se llama antes de cada petición."""
     if CONTADOR_GASTO.total_usd >= PRESUPUESTO_USD:
         raise BudgetExceeded(f"Presupuesto agotado: {CONTADOR_GASTO.total_usd:.2f} / {PRESUPUESTO_USD:.2f} USD")
+    if PROVEEDOR == "codex" and PRESUPUESTO_TOKENS_CODEX and CONTADOR_GASTO.tokens_codex >= PRESUPUESTO_TOKENS_CODEX:
+        raise BudgetExceeded(f"Tope de tokens de Codex agotado: {CONTADOR_GASTO.tokens_codex:,} / {PRESUPUESTO_TOKENS_CODEX:,}")
 
 
 def chat(mensajes: list[dict], modelo: str = MODELO_AGENTE, herramientas: list[dict] | None = None,
@@ -159,6 +178,9 @@ def chat(mensajes: list[dict], modelo: str = MODELO_AGENTE, herramientas: list[d
          timeout_s: float | None = None, max_tokens: int | None = None, reintentos: int = REINTENTOS):
     """Devuelve (mensaje, tokens, costo_usd). Reintenta los errores transitorios con backoff exponencial."""
     revisar_presupuesto()
+    if PROVEEDOR == "codex":
+        # Codex no admite temperatura, semilla ni max_tokens: se ignoran (más variación entre corridas)
+        return _chat_codex(mensajes, modelo, herramientas, modo_json, reintentos)
     parametros: dict = {"model": modelo, "messages": mensajes, "temperature": temperatura}
     if herramientas:
         parametros["tools"] = herramientas
@@ -182,6 +204,27 @@ def chat(mensajes: list[dict], modelo: str = MODELO_AGENTE, herramientas: list[d
         costo = costo_usd(modelo, respuesta.usage)
         CONTADOR_GASTO.sumar(costo)
         return respuesta.choices[0].message, respuesta.usage.total_tokens, costo
+    raise ValueError(f"reintentos debe ser al menos 1 (se recibió {reintentos})")
+
+
+def _chat_codex(mensajes: list[dict], modelo: str, herramientas: list[dict] | None, modo_json: bool,
+                reintentos: int):
+    """Misma interfaz que chat(), pero con la CLI de Codex. El costo en USD es 0; se cuentan tokens."""
+    for intento in range(1, reintentos + 1):
+        try:
+            mensaje, tokens = proveedor_codex.chat(mensajes, modelo, herramientas, modo_json,
+                                                   inteligente=modelo == MODELO_INTELIGENTE)
+        except proveedor_codex.LimiteDeCodex as e:
+            raise BudgetExceeded(f"Límite de uso de la cuenta de Codex: {e}") from e
+        # Un intento de usar la terminal también se reintenta: en la evaluación suele ser casual. Si persiste
+        # (p. ej. un mensaje malicioso en /live), sube el error y no se muestra nada de esa respuesta
+        except (proveedor_codex.FalloTransitorio, proveedor_codex.HerramientaProhibida):
+            if intento == reintentos:
+                raise
+            time.sleep(min(2 ** (intento - 1), ESPERA_MAXIMA_S))
+            continue
+        CONTADOR_GASTO.sumar_tokens_codex(tokens)
+        return mensaje, tokens, 0.0
     raise ValueError(f"reintentos debe ser al menos 1 (se recibió {reintentos})")
 
 
