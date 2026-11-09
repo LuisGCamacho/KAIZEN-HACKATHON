@@ -21,7 +21,7 @@ python -m venv .venv
 cp .env.example .env                              # pon OPENAI_API_KEY
 ```
 
-Usa siempre el Python del venv (`.venv/Scripts/python` en Windows). Dependencias: `openai`, `python-dotenv`, `pytest` y `pytest-timeout`. No agregues dependencias sin avisar al equipo.
+Usa siempre el Python del venv (`.venv/Scripts/python` en Windows). Dependencias: `openai`, `python-dotenv`, `pytest`, `pytest-timeout` y `openpyxl` (solo para el Excel de Evolución). No agregues dependencias sin avisar al equipo.
 
 ## Comandos
 
@@ -44,6 +44,7 @@ Usa siempre el Python del venv (`.venv/Scripts/python` en Windows). Dependencias
 backend/
 ├── run.py              CLI: orquesta evaluar → destilar → evaluar. Crea data/runs/.lock
 ├── live.py             Demo en vivo: lee JSON por stdin y emite eventos NDJSON por stdout
+├── exportar_excel.py   Excel de Evolución por stdout (tabla, resumen y gráficas). Lo lanza /api/excel
 ├── core/
 │   ├── contracts.py    CONTRATOS de datos (Step, Verdict, Trace, AgentSpec, GenerationReport). Espejo: web/lib/types.ts
 │   ├── llm.py          ÚNICO cliente OpenAI: chat(), chat_json(), costo, reintentos, BudgetExceeded
@@ -66,7 +67,8 @@ backend/
 │   ├── trato.py        Nota de trato al cliente (criterio fijo)
 │   ├── history.py      reports.json por rama, agregados entre semillas, best/latest generation
 │   ├── rescore.py      Recalifica trazas guardadas con el verificador actual
-│   └── export.py       Escribe web/public/data/*.json para la interfaz
+│   ├── export.py       Escribe web/public/data/*.json para la interfaz
+│   └── excel.py        Arma el .xlsx de Evolución con las filas de export.filas_de_rama()
 ├── improve/
 │   ├── distiller.py    Nivel 1: clusters de fallos → playbooks + tool + prompt + topología
 │   ├── tool_synth.py   El LLM escribe una tool + sus tests; el gate (AST + pytest) decide
